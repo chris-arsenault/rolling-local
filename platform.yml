@@ -1,0 +1,11 @@
+project: rolling-local
+prefix: rolling-local
+stack: [rust, typescript, terraform, android]
+rust_dir: backend
+typescript_dir: frontend
+rust_artifacts:
+  lambdas:
+    - rolling-local-api
+android:
+  dir: mobile/android
+  ci_task: ":app:assembleDebug :app:lintDebug"

@@ -1,0 +1,68 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  actions: read
+
+jobs:
+  ios:
+    name: Build iOS operator and widget
+    runs-on: macos-15
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: mobile/ios
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+      - name: Build for iOS Simulator
+        run: |
+          xcodebuild -project RollingLocal.xcodeproj -scheme RollingLocal \
+            -sdk iphonesimulator -configuration Debug \
+            -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
+
+  ci:
+    needs: ios
+    uses: chris-arsenault/ahara/.github/workflows/ci.yml@main
+    secrets: inherit
+
+  smoke:
+    name: Check deployed discovery
+    needs: ci
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check site and public API
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://api.rolling-local.ahara.io"
+          site="https://rolling-local.ahara.io"
+          curl_opts=(--fail --silent --show-error --retry 10 --retry-delay 10 --retry-all-errors --max-time 25)
+          curl "${curl_opts[@]}" "$api/health" | jq -e '.status == "ok"'
+          curl "${curl_opts[@]}" "$api/public/trucks" | jq -e '
+            (.trucks | type == "array") and
+            all(.trucks[]; (.active and has("location")) or ((.active | not) and (has("location") | not)))'
+          curl "${curl_opts[@]}" "$site/" | grep -F 'Rolling Local'
+          curl "${curl_opts[@]}" "$site/config.js" | grep -F "$api"
+          code="$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' "$api/operator")"
+          case "$code" in
+            401|403) ;;
+            *) printf 'Anonymous operator request returned %s\n' "$code" >&2; exit 1 ;;
+          esac
