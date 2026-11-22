@@ -88,7 +88,10 @@ function TruckDetail({ truck, now, close }: { truck: Truck; now: number; close: 
       {truck.menu ? (
         <figure>
           <img src={truck.menu.url} alt={`Menu photo for ${truck.name}`} />
-          <figcaption>Photo taken <time dateTime={truck.menu.capturedAt}>{time.format(new Date(truck.menu.capturedAt))}</time></figcaption>
+          <figcaption>
+            <div>Photo taken <time dateTime={truck.menu.capturedAt}>{time.format(new Date(truck.menu.capturedAt))}</time></div>
+            <div>Published <time dateTime={truck.menu.publishedAt}>{time.format(new Date(truck.menu.publishedAt))}</time></div>
+          </figcaption>
         </figure>
       ) : <p className="cuisine">This truck hasn’t published a menu photo.</p>}
     </dialog>

@@ -16,7 +16,7 @@ The API evaluates the current hours, session and applicable circle. Closing time
 
 The public directory includes every enrolled truck with a completed profile. Consumers can filter by name or cuisine and open each truck’s menu. Only eligible sessions supply coordinates to the public map. Offline profiles include a menu and status when available and omit location.
 
-The operator captures a menu photo and sees its publication result. The API authorizes a signed upload to private S3, publishes a sanitized JPEG, and stores the capture and publication times. The consumer sees the capture time with the photo. The directory and active feed use uncached responses.
+The operator captures a menu photo and sees its publication result. The API authorizes a signed upload to private S3 and publishes a sanitized JPEG. The consumer sees the capture and publication times with the photo. The directory and active feed use uncached responses.
 
 ## Delivery
 

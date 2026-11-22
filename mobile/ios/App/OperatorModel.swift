@@ -29,6 +29,7 @@ private struct PublishMenu: Encodable { let id: UUID; let capturedAt: Date }
     private let login = Login()
     private let manager = CLLocationManager()
     private var config: LoginConfig?
+    private var restored = false
     private var desired: UUID?
     private var publishing = false
     private var expiry: Task<Void, Never>?
@@ -44,6 +45,8 @@ private struct PublishMenu: Encodable { let id: UUID; let capturedAt: Date }
     }
 
     func restore() async {
+        guard !restored else { return }
+        defer { restored = true }
         guard login.canRestore else {
             refreshWidget()
             return
@@ -70,6 +73,7 @@ private struct PublishMenu: Encodable { let id: UUID; let capturedAt: Date }
     }
 
     func handleWidget() async {
+        guard restored else { return }
         for action in WidgetActions.take() {
             switch action {
             case .sharing: await toggleSharing()

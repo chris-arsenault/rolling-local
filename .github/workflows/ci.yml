@@ -13,6 +13,30 @@ permissions:
   actions: read
 
 jobs:
+  android:
+    name: Build Android operator and widget
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
+          log-accepted-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Build and lint Android
+        working-directory: mobile/android
+        run: gradle --no-daemon :app:assembleDebug :app:lintDebug
+
   ios:
     name: Build iOS operator and widget
     runs-on: macos-15
@@ -36,7 +60,7 @@ jobs:
             -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
 
   ci:
-    needs: ios
+    needs: [android, ios]
     uses: chris-arsenault/ahara/.github/workflows/ci.yml@main
     secrets: inherit
 
