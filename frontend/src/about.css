@@ -1,0 +1,40 @@
+.about { max-width: 80rem; margin: auto; padding: 0 clamp(1.15rem, 4vw, 3.5rem); }
+.about-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.35rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.about-header > a:last-child { color: var(--green); font-weight: 700; text-underline-offset: 3px; }
+.about-hero {
+  display: grid;
+  gap: clamp(1.4rem, 5vw, 4.5rem);
+  align-items: center;
+  padding: clamp(2.5rem, 7vw, 6rem) 0;
+}
+.about h1, .about h2 { margin: 0; letter-spacing: -.055em; line-height: 1.04; }
+.about h1 { font-size: clamp(3.2rem, 6vw, 6.35rem); max-width: 10ch; }
+.about h2 { font-size: clamp(1.55rem, 3vw, 2.4rem); }
+.about p { max-width: 57ch; line-height: 1.6; color: #435b4f; margin: .9rem 0 0; }
+.about-hero p { font-size: clamp(1.02rem, 2vw, 1.3rem); max-width: 34ch; }
+.about-hero img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 1.25rem;
+  background: #dfe6d7;
+}
+.about-features { display: grid; gap: clamp(1.45rem, 3vw, 2.75rem); padding-bottom: clamp(2.8rem, 6vw, 5.6rem); }
+.about-features article { border-top: 2px solid #a6baa7; padding-top: 1.3rem; }
+.about-review { background: #e7efdf; border-radius: 1.25rem; padding: clamp(1.5rem, 5vw, 3rem); }
+.about footer { padding: 2rem 0; color: #435b4f; }
+.about footer a { color: inherit; }
+
+@media (min-width: 760px) {
+  .about-hero { grid-template-columns: .92fr 1.08fr; }
+  .about-features { grid-template-columns: repeat(3, 1fr); }
+}

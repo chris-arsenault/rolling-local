@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" role="img" aria-labelledby="title">
+  <title id="title">Food truck illustration. Photo coming soon.</title>
+  <rect width="800" height="600" fill="#e5ecde"/>
+  <circle cx="400" cy="276" r="169" fill="#d5e2ce"/>
+
+  <g stroke="#244a38" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M211 402h378" stroke="#9bb19a"/>
+    <path d="M209 342V208a16 16 0 0 1 16-16h250a16 16 0 0 1 16 16v28h48l52 57v49a17 17 0 0 1-17 17H226a17 17 0 0 1-17-17Z" fill="#fffef7"/>
+    <path d="M210 326h379v17a16 16 0 0 1-16 16H226a16 16 0 0 1-16-16Z" fill="#81a589"/>
+    <path d="M491 236v90" fill="none"/>
+    <path d="M516 255h15l34 38h-49Z" fill="#d5e2ce"/>
+    <rect x="257" y="227" width="180" height="73" rx="4" fill="#d5e2ce"/>
+    <path d="M253 226h188l17 25H236Z" fill="#81a589"/>
+    <path d="M294 226l-8 25m59-25v25m51-25 8 25m-154 49h194" fill="none"/>
+    <circle cx="278" cy="359" r="29" fill="#244a38"/>
+    <circle cx="523" cy="359" r="29" fill="#244a38"/>
+  </g>
+  <g fill="#fffef7">
+    <circle cx="278" cy="359" r="10"/>
+    <circle cx="523" cy="359" r="10"/>
+  </g>
+
+  <text x="400" y="486" text-anchor="middle" fill="#244a38"
+        font-family="system-ui, sans-serif" font-size="44" font-weight="700">Coming soon</text>
+</svg>

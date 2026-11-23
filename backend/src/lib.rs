@@ -1,10 +1,14 @@
+mod admin;
 pub mod domain;
 pub mod media;
 pub mod storage;
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{DateTime, Duration, Utc};
-use domain::{Fix, Menu, Profile, PublicTruck, Rejection, Session, Settings, Sharing};
+use domain::{
+    Fix, Listing, Menu, Profile, PublicTruck, Rejection, Session, Settings, Sharing, Truck,
+    TruckStatus,
+};
 use lambda_http::{
     Body, Request, Response,
     http::{Method, StatusCode},
@@ -25,9 +29,17 @@ pub enum Surface {
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OperatorConfig {
-    pub cognito_domain: String,
-    pub client_id: String,
+    pub issuer: String,
+    pub audience: String,
+    pub connection: String,
+    pub web_client_id: String,
+    pub ios_client_id: String,
+    pub android_client_id: String,
     pub redirect_uri: String,
+    #[serde(skip)]
+    pub public_site: String,
+    #[serde(skip)]
+    pub admin_subject: Option<String>,
 }
 
 #[derive(Clone)]
@@ -52,6 +64,10 @@ impl Failure {
 
     fn not_found() -> Self {
         Self(StatusCode::NOT_FOUND, "Endpoint not found".into())
+    }
+
+    fn forbidden(message: &str) -> Self {
+        Self(StatusCode::FORBIDDEN, message.into())
     }
 }
 
@@ -86,15 +102,43 @@ impl From<Rejection> for Failure {
 
 #[derive(Deserialize)]
 struct Claims {
-    sub: Uuid,
-    client_id: String,
-    token_use: String,
+    sub: String,
+    iss: String,
+    aud: Audience,
+    azp: String,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum Audience {
+    Single(String),
+    Multiple(Vec<String>),
+}
+
+impl Audience {
+    fn contains(&self, expected: &str) -> bool {
+        match self {
+            Self::Single(value) => value == expected,
+            Self::Multiple(values) => values.iter().any(|value| value == expected),
+        }
+    }
 }
 
 #[derive(Serialize)]
-struct OperatorView {
+#[serde(rename_all = "camelCase")]
+struct OperatorView<'a> {
+    account_id: &'a str,
+    registration: Option<Registration<'a>>,
     profile: Option<Profile>,
     session: Option<Sharing>,
+}
+
+#[derive(Serialize)]
+struct Registration<'a> {
+    id: Uuid,
+    #[serde(flatten)]
+    listing: &'a Listing,
+    status: TruckStatus,
 }
 
 #[derive(Deserialize)]
@@ -156,9 +200,16 @@ impl Api {
     }
 
     pub async fn handle(&self, req: Request, now: DateTime<Utc>) -> Response<Body> {
+        let web_request = req
+            .headers()
+            .get("origin")
+            .is_some_and(|origin| origin == self.config.public_site.as_str());
+        if req.method() == Method::OPTIONS && matches!(self.surface, Surface::Public) {
+            return self.preflight(&req, web_request);
+        }
         let result = match self.surface {
             Surface::Public => self.public(&req, now).await,
-            Surface::Operator => self.operator(&req, now).await,
+            Surface::Operator => self.authenticated(&req, now).await,
         };
         let mut reply =
             result.unwrap_or_else(|failure| response(failure.0, json!({ "error": failure.1 })));
@@ -166,7 +217,49 @@ impl Api {
             reply
                 .headers_mut()
                 .insert("access-control-allow-origin", "*".parse().unwrap());
+        } else {
+            reply
+                .headers_mut()
+                .insert("vary", "Origin".parse().unwrap());
+            if web_request {
+                self.allow_site(&mut reply);
+            }
         }
+        reply
+    }
+
+    fn allow_site(&self, reply: &mut Response<Body>) {
+        reply.headers_mut().insert(
+            "access-control-allow-origin",
+            self.config.public_site.parse().expect("Valid site origin"),
+        );
+    }
+
+    fn preflight(&self, req: &Request, web_request: bool) -> Response<Body> {
+        let path = req.uri().path();
+        if !web_request
+            || !(path == "/operator"
+                || path.starts_with("/operator/")
+                || path.starts_with("/admin/"))
+        {
+            return response(
+                StatusCode::FORBIDDEN,
+                json!({"error": "Origin not allowed"}),
+            );
+        }
+        let mut reply = Response::new(Body::Empty);
+        *reply.status_mut() = StatusCode::NO_CONTENT;
+        self.allow_site(&mut reply);
+        let headers = reply.headers_mut();
+        headers.insert("vary", "Origin".parse().unwrap());
+        headers.insert(
+            "access-control-allow-methods",
+            "GET, POST, PUT, DELETE".parse().unwrap(),
+        );
+        headers.insert(
+            "access-control-allow-headers",
+            "authorization, content-type".parse().unwrap(),
+        );
         reply
     }
 
@@ -180,8 +273,8 @@ impl Api {
                     .directory()
                     .await?
                     .into_iter()
-                    .map(|(profile, session)| {
-                        PublicTruck::from_profile(profile, session.as_ref(), now)
+                    .filter_map(|(truck, session)| {
+                        PublicTruck::from_truck(truck.value, session.as_ref(), now)
                     })
                     .collect();
                 Ok(ok(json!({ "trucks": trucks })))
@@ -190,7 +283,7 @@ impl Api {
         }
     }
 
-    fn owner(&self, req: &Request) -> Result<Uuid, Failure> {
+    fn subject(&self, req: &Request) -> Result<String, Failure> {
         // The operator Lambda is reached through the ALB's authenticated listener rule.
         let author = req
             .headers()
@@ -207,29 +300,52 @@ impl Api {
             .map_err(|_| Failure::unauthorized())?;
         let claims: Claims =
             serde_json::from_slice(&payload).map_err(|_| Failure::unauthorized())?;
-        if claims.token_use != "access" || claims.client_id != self.config.client_id {
+        let clients = [
+            &self.config.web_client_id,
+            &self.config.ios_client_id,
+            &self.config.android_client_id,
+        ];
+        if claims.iss != self.config.issuer
+            || !claims.aud.contains(&self.config.audience)
+            || !clients.contains(&&claims.azp)
+            || claims.sub.trim().is_empty()
+            || claims.sub.len() > 255
+        {
             return Err(Failure::unauthorized());
         }
         Ok(claims.sub)
     }
 
-    async fn operator(&self, req: &Request, now: DateTime<Utc>) -> Reply {
-        let owner = self.owner(req)?;
-        match (req.method(), req.uri().path()) {
-            (&Method::GET, "/operator") => self.read_operator(owner, now).await,
-            (&Method::PUT, "/operator/settings") => self.settings(owner, body(req)?, now).await,
-            (&Method::POST, "/operator/sessions") => self.start(owner, body(req)?, now).await,
-            (&Method::POST, "/operator/menu/upload") => {
-                let profile = self.enrolled(owner).await?;
-                let data: Upload = body(req)?;
-                Ok(ok(self.media.upload(profile.value.id, data.bytes).await?))
-            }
-            (&Method::POST, "/operator/menu/publish") => self.publish(owner, body(req)?, now).await,
-            _ => self.session_request(req, owner, now).await,
+    async fn authenticated(&self, req: &Request, now: DateTime<Utc>) -> Reply {
+        let subject = self.subject(req)?;
+        if req.uri().path().starts_with("/admin/") {
+            self.admin(req, &subject, now).await
+        } else {
+            self.operator(req, &subject, now).await
         }
     }
 
-    async fn session_request(&self, req: &Request, owner: Uuid, now: DateTime<Utc>) -> Reply {
+    async fn operator(&self, req: &Request, subject: &str, now: DateTime<Utc>) -> Reply {
+        match (req.method(), req.uri().path()) {
+            (&Method::GET, "/operator") => self.read_operator(subject, now).await,
+            (&Method::POST, "/operator/registration") => {
+                self.register(subject, body(req)?, now).await
+            }
+            (&Method::PUT, "/operator/settings") => self.settings(subject, body(req)?, now).await,
+            (&Method::POST, "/operator/sessions") => self.start(subject, body(req)?, now).await,
+            (&Method::POST, "/operator/menu/upload") => {
+                let truck = self.approved(subject).await?;
+                let data: Upload = body(req)?;
+                Ok(ok(self.media.upload(truck.value.id, data.bytes).await?))
+            }
+            (&Method::POST, "/operator/menu/publish") => {
+                self.publish(subject, body(req)?, now).await
+            }
+            _ => self.session_request(req, subject, now).await,
+        }
+    }
+
+    async fn session_request(&self, req: &Request, subject: &str, now: DateTime<Utc>) -> Reply {
         let path = req
             .uri()
             .path()
@@ -238,7 +354,7 @@ impl Api {
         match (req.method(), path.strip_suffix("/fix")) {
             (&Method::PUT, Some(id)) => {
                 self.fix(
-                    owner,
+                    subject,
                     id.parse().map_err(|_| Failure::not_found())?,
                     body(req)?,
                     now,
@@ -246,8 +362,12 @@ impl Api {
                 .await
             }
             (&Method::DELETE, None) => {
+                let truck = self.approved(subject).await?;
                 self.store
-                    .stop(owner, path.parse().map_err(|_| Failure::not_found())?)
+                    .stop(
+                        truck.value.id,
+                        path.parse().map_err(|_| Failure::not_found())?,
+                    )
                     .await?;
                 Ok(ok(json!({ "session": null })))
             }
@@ -255,80 +375,96 @@ impl Api {
         }
     }
 
-    async fn enrolled(&self, owner: Uuid) -> Result<Record<Profile>, Failure> {
+    async fn approved(&self, subject: &str) -> Result<Record<Truck>, Failure> {
         self.store
-            .profile(owner)
+            .owned_truck(subject)
             .await?
-            .ok_or_else(|| Failure::invalid("Complete truck setup first"))
+            .filter(|record| record.value.status == TruckStatus::Approved)
+            .ok_or_else(|| Failure::forbidden("An approved truck is required"))
     }
 
-    async fn read_operator(&self, owner: Uuid, now: DateTime<Utc>) -> Reply {
-        let profile = self.store.profile(owner).await?.map(|record| record.value);
+    async fn read_operator(&self, subject: &str, now: DateTime<Utc>) -> Reply {
+        let truck = self
+            .store
+            .owned_truck(subject)
+            .await?
+            .map(|record| record.value);
+        let profile = truck.as_ref().and_then(Truck::operator_profile);
         let session = match &profile {
             Some(profile) => self
                 .store
-                .session(owner)
+                .session(profile.id)
                 .await?
                 .filter(|record| record.value.active(profile, now))
                 .map(|record| Sharing::from(&record.value)),
             None => None,
         };
-        Ok(ok(OperatorView { profile, session }))
+        let registration = truck.as_ref().map(|truck| Registration {
+            id: truck.id,
+            listing: &truck.listing,
+            status: truck.status,
+        });
+        Ok(ok(OperatorView {
+            account_id: subject,
+            registration,
+            profile,
+            session,
+        }))
     }
 
-    async fn settings(&self, owner: Uuid, mut settings: Settings, now: DateTime<Utc>) -> Reply {
+    async fn register(&self, subject: &str, listing: Listing, now: DateTime<Utc>) -> Reply {
+        let listing = listing
+            .normalize()
+            .ok_or_else(|| Failure::invalid("Enter a truck name and cuisine"))?;
+        if self.store.owned_truck(subject).await?.is_none() {
+            let truck = Truck::new(listing, Some(subject.into()));
+            let result = self.store.put_truck(None, Record::new(truck), true).await;
+            if result == Err(StoreError::Conflict)
+                && self.store.owned_truck(subject).await?.is_some()
+            {
+                return self.read_operator(subject, now).await;
+            }
+            result?;
+        }
+        self.read_operator(subject, now).await
+    }
+
+    async fn settings(&self, subject: &str, settings: Settings, now: DateTime<Utc>) -> Reply {
         if !settings.valid(now) {
             return Err(Failure::invalid(
                 "Check your truck name, cuisine, hours, and operating areas",
             ));
         }
-        settings.name = settings.name.trim().into();
-        settings.cuisine = settings.cuisine.trim().into();
-        settings.hours.weekdays.sort_unstable();
-        settings.hours.weekdays.dedup();
-        let prior = self.store.profile(owner).await?;
-        let profile = match prior.as_ref() {
-            Some(record) => Profile {
-                id: record.value.id,
-                policy_id: if record.value.settings.same_sharing_policy(&settings) {
-                    record.value.policy_id
-                } else {
-                    Uuid::new_v4()
-                },
-                settings,
-                menu: record.value.menu.clone(),
-            },
-            None => Profile {
-                id: Uuid::new_v4(),
-                policy_id: Uuid::new_v4(),
-                settings,
-                menu: None,
-            },
-        };
+        let mut prior = self.approved(subject).await?;
+        prior.value.update_settings(settings);
         self.store
-            .put_profile(owner, prior.map(|r| r.version), Record::new(profile))
+            .put_truck(Some(prior.version), Record::new(prior.value), false)
             .await?;
-        self.read_operator(owner, now).await
+        self.read_operator(subject, now).await
     }
 
-    async fn start(&self, owner: Uuid, start: Start, now: DateTime<Utc>) -> Reply {
-        let profile = self.enrolled(owner).await?;
-        let prior = self.store.session(owner).await?;
+    async fn start(&self, subject: &str, start: Start, now: DateTime<Utc>) -> Reply {
+        let truck = self.approved(subject).await?;
+        let profile = truck
+            .value
+            .operator_profile()
+            .ok_or_else(|| Failure::invalid("Complete operating settings first"))?;
+        let prior = self.store.session(profile.id).await?;
         if let Some(current) = prior
             .as_ref()
             .filter(|current| current.value.id == start.id)
         {
-            if current.value.active(&profile.value, now) {
+            if current.value.active(&profile, now) {
                 return Ok(ok(Sharing::from(&current.value)));
             }
             return Err(Rejection::Ended.into());
         }
-        let session = Session::begin(&profile.value, start.id, start.fix, now)?;
+        let session = Session::begin(&profile, start.id, start.fix, now)?;
         let sharing = Sharing::from(&session);
         self.store
             .put_session(
-                owner,
-                profile.version,
+                profile.id,
+                truck.version,
                 prior.map(|r| r.version),
                 Record::new(session),
                 true,
@@ -337,21 +473,22 @@ impl Api {
         Ok(ok(sharing))
     }
 
-    async fn fix(&self, owner: Uuid, id: Uuid, fix: Fix, now: DateTime<Utc>) -> Reply {
-        let profile = self.enrolled(owner).await?;
+    async fn fix(&self, subject: &str, id: Uuid, fix: Fix, now: DateTime<Utc>) -> Reply {
+        let truck = self.approved(subject).await?;
+        let profile = truck.value.operator_profile().ok_or(Rejection::Ended)?;
         let mut current = self
             .store
-            .session(owner)
+            .session(profile.id)
             .await?
             .filter(|r| r.value.id == id)
             .ok_or(Rejection::Ended)?;
-        match current.value.update(&profile.value, fix, now) {
+        match current.value.update(&profile, fix, now) {
             Ok(true) => {
                 let sharing = Sharing::from(&current.value);
                 self.store
                     .put_session(
-                        owner,
-                        profile.version,
+                        profile.id,
+                        truck.version,
                         Some(current.version),
                         Record::new(current.value),
                         false,
@@ -366,19 +503,19 @@ impl Api {
                 | Rejection::Ended
                 | Rejection::InvalidFix),
             ) => {
-                self.store.stop(owner, id).await?;
+                self.store.stop(profile.id, id).await?;
                 Err(reason.into())
             }
             Err(error) => Err(error.into()),
         }
     }
 
-    async fn publish(&self, owner: Uuid, publish: Publish, now: DateTime<Utc>) -> Reply {
+    async fn publish(&self, subject: &str, publish: Publish, now: DateTime<Utc>) -> Reply {
         if publish.captured_at > now + Duration::minutes(1) {
             return Err(Failure::invalid("Capture time must not be in the future"));
         }
-        let mut profile = self.enrolled(owner).await?;
-        if let Some(menu) = &profile.value.menu {
+        let mut truck = self.approved(subject).await?;
+        if let Some(menu) = &truck.value.menu {
             if menu.id == publish.id {
                 return Ok(ok(menu));
             }
@@ -389,16 +526,16 @@ impl Api {
                 ));
             }
         }
-        let url = self.media.publish(profile.value.id, publish.id).await?;
+        let url = self.media.publish(truck.value.id, publish.id).await?;
         let menu = Menu {
             id: publish.id,
             captured_at: publish.captured_at,
             published_at: now,
             url,
         };
-        profile.value.menu = Some(menu.clone());
+        truck.value.menu = Some(menu.clone());
         self.store
-            .put_profile(owner, Some(profile.version), Record::new(profile.value))
+            .put_truck(Some(truck.version), Record::new(truck.value), false)
             .await?;
         Ok(ok(menu))
     }

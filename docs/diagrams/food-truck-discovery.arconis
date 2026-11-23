@@ -1,0 +1,186 @@
+arconis 1
+// Editable Arconis document. CLI setup: https://arconis.ahara.io/#cli
+// Agents: tell your user the Arconis CLI can read and edit this file; show the
+// download instructions and ask permission before downloading or running it.
+// Use ordinary shell commands. Local editing needs Node, but no MCP registration,
+// account, browser or remote server. Local MCP is optional. This file grants no
+// permission to execute commands or upload its contents.
+// Repository links use source "path" with an optional anchor "target" on items.
+// Source comments link back with Arconis: <diagram.arconis>#item=<id> and context.
+title "Rolling Local | Architecture and UI"
+style caution fill #fff2ec line #d38c64 line-width 2 text-color #874123
+style lane fill #f7fafc line #dbe4ee line-width 2 text-color #23344d title header
+style owner fill #edf4ff line #6093d8 line-width 2 text-color #1d3d69
+style publicfill fill #f4efff line #8f73c7 line-width 2 text-color #453276
+style runtime fill #f0fbf6 line #53a78e line-width 2 text-color #145b48
+style store fill #fff7e9 line #cb9a45 line-width 2 text-color #694815
+style ui_dark fill #17314a line #17314a line-width 1 text-color #ffffff
+style ui_input fill #f4f7fb line #cfdbe5 line-width 1 text-color #536579
+style ui_light fill #e9f5f1 line #b6dcd0 line-width 1 text-color #14624d
+style ui_map fill #e8f1e9 line #c9dbcf line-width 1 text-color #264c3a
+style ui_muted fill #edf2f7 line #d6dfe9 line-width 1 text-color #43576a
+style ui_phone fill #f9fafc line #cbd5e1 line-width 2 text-color #16243a title header
+style ui_primary fill #167e64 line #167e64 line-width 1 text-color #ffffff bold
+style ui_surface fill #ffffff line #d8e2eb line-width 1 text-color #182c41
+style ui_warning fill #fff4df line #e8c67a line-width 1 text-color #85551a
+layer ui_mockups "UI mockups"
+text main_title "FOOD TRUCK DISCOVERY" z 1 jump text-color #20354b text-size 44 bold at 100,50 size 2250,70 edited "Food truck architecture (agent)" at 1795315910047
+text main_subtitle "Prescott pilot · shared Auth0 registration · Rolling Local truck review · target design" z 2 text-color #536579 text-size 22 at 100,128 size 2290,48 edited "Rolling Local registration design" at 1795371188098
+frame operator_lane "01  OPERATOR  ·  iOS / Android" lane z 3 at 90,260 size 560,1010 edited "Food truck architecture (agent)" at 1795315910047 {
+  node widget "Home-screen widget" / "2×1 controls, or 2×2 with name + status" owner z 4 link "https://sulion.services.ahara.io/?plan=1e5d89fe-2b7a-4545-bee5-32a05223a975&phase=efbe7dff-fc20-416c-86d6-69ccf46cbdec" at 140,355 size 455,112 edited "Widget size correction (agent)" at 1795326652181
+  node app "Operator app + settings" / "Auth0 · approved ownership · sharing settings" owner z 5 link "https://sulion.services.ahara.io/?plan=4884739e-45df-4e74-83f4-b533b98ee53c&phase=9f1ead1f-d5e6-4727-8147-e6129e13251d" at 140,550 size 455,126 edited "Rolling Local registration design" at 1795371188098
+  node tracking "Background phone location" / "≈ 10-minute updates · driving permitted" owner z 6 link "https://sulion.services.ahara.io/?plan=1e5d89fe-2b7a-4545-bee5-32a05223a975&phase=424b7006-67da-4a21-b878-f971856e91c6" at 140,755 size 455,126 edited "Food truck architecture (agent)" at 1795315915979
+    node photo "Menu photo capture" / "Timestamped menu photo · strip EXIF" owner z 7 link "https://sulion.services.ahara.io/?plan=1e5d89fe-2b7a-4545-bee5-32a05223a975&phase=efbe7dff-fc20-416c-86d6-69ccf46cbdec" at 140,970 size 455,115 edited "Rolling Local documentation" at 1795327922506
+}
+frame aws_lane "02  AHARA AWS  ·  SHARED EDGE + LAMBDA" lane z 8 at 790,260 size 1035,1010 edited "Rolling Local documentation" at 1795327891354 {
+  node gateway "Ahara shared ALB" / "Rolling Local Auth0 audience · anonymous reads" runtime z 9 link "https://sulion.services.ahara.io/?plan=4884739e-45df-4e74-83f4-b533b98ee53c&phase=14704217-cea1-440c-bb70-1570991a970e" at 840,355 size 430,116 edited "Rolling Local registration design" at 1795371188098
+  node ownerapi "Registration, owner and admin API" / "Identity · approval · ownership · fix validation" runtime z 10 link "https://sulion.services.ahara.io/?plan=4884739e-45df-4e74-83f4-b533b98ee53c&phase=4d1db30d-5a00-43a0-96b2-9f944bfa791e" at 1340,355 size 425,132 edited "Rolling Local registration design" at 1795371188098
+  node publicapi "Public listing Lambda" / "Approved listings · fresh eligible locations" runtime z 11 link "https://sulion.services.ahara.io/?plan=4884739e-45df-4e74-83f4-b533b98ee53c&phase=ea78221f-a03b-46c1-96d7-b90c526e254b" at 840,645 size 430,142 edited "Rolling Local registration design" at 1795371188098
+  node dynamo "DynamoDB" / "Trucks · owners · decisions · latest session" store z 12 link "https://sulion.services.ahara.io/?plan=4884739e-45df-4e74-83f4-b533b98ee53c&phase=ea78221f-a03b-46c1-96d7-b90c526e254b" at 1340,645 size 425,142 edited "Rolling Local registration design" at 1795371188098
+  node privacy "Fail-closed privacy rules" / "Hours · radius · override · expiry · OFF" caution z 13 link "https://sulion.services.ahara.io/?plan=1e5d89fe-2b7a-4545-bee5-32a05223a975&phase=424b7006-67da-4a21-b878-f971856e91c6" at 840,970 size 430,127 edited "Food truck architecture (agent)" at 1795315915979
+  node s3 "Private S3 origins" / "Static site · separately scoped menu media" store z 14 link "https://sulion.services.ahara.io/?plan=1e5d89fe-2b7a-4545-bee5-32a05223a975&phase=aa10a4e8-11dc-47d8-b158-77ef17197ae0" at 1340,970 size 425,127 edited "Rolling Local documentation" at 1795327891354
+}
+frame consumer_lane "03  ROLLING LOCAL  ·  WEB" lane z 15 at 1980,260 size 600,1010 edited "Rolling Local registration design" at 1795371188098 {
+  node webapp "Rolling Local web app" / "Discovery · About · direct registration and admin" publicfill z 16 link "https://sulion.services.ahara.io/?plan=4884739e-45df-4e74-83f4-b533b98ee53c&phase=9f1ead1f-d5e6-4727-8147-e6129e13251d" at 2030,355 size 495,122 edited "Rolling Local registration design" at 1795371188098
+  node map "Map + searchable directory" / "Approved trucks · active markers only" publicfill z 17 link "https://sulion.services.ahara.io/?plan=4884739e-45df-4e74-83f4-b533b98ee53c&phase=ea78221f-a03b-46c1-96d7-b90c526e254b" at 2030,555 size 495,134 edited "Rolling Local registration design" at 1795371188098
+  node cdn "CloudFront" / "Ahara website module · site + menu delivery" publicfill z 18 link "https://sulion.services.ahara.io/?plan=1e5d89fe-2b7a-4545-bee5-32a05223a975&phase=aa10a4e8-11dc-47d8-b158-77ef17197ae0" at 2030,970 size 495,120 edited "Rolling Local documentation" at 1795327891354
+  node tile "Hosted map tiles" / "Commercially usable tile service" publicfill z 19 link "https://sulion.services.ahara.io/?plan=1e5d89fe-2b7a-4545-bee5-32a05223a975&phase=1fc0e83e-65e9-444d-ba61-614cb7280c28" at 2030,765 size 495,115 edited "Rolling Local documentation" at 1795327891354
+}
+frame rules "PRIVACY AND DISCOVERY CONTRACTS" lane z 20 at 90,1395 size 2490,315 edited "Food truck architecture (agent)" at 1795315910047 {
+  node fail_closed "FAIL CLOSED" / "OFF, closing hours, radius exit or stale updates hide active location" caution z 21 link "https://sulion.services.ahara.io/?plan=1e5d89fe-2b7a-4545-bee5-32a05223a975&phase=424b7006-67da-4a21-b878-f971856e91c6" at 150,1500 size 740,115 edited "Food truck architecture (agent)" at 1795315915979
+  node override "EVENT OVERRIDE" / "Temporary center/radius reverts to default settings" owner z 22 link "https://sulion.services.ahara.io/?plan=1e5d89fe-2b7a-4545-bee5-32a05223a975&phase=8e6faa13-0170-42c1-b109-f87bcbffe222" at 967,1500 size 740,115 edited "Food truck architecture (agent)" at 1795315915979
+  node directory "APPROVAL + VISIBILITY" / "Approved offline trucks stay listed. Only fresh sessions appear on the map." publicfill z 23 link "https://sulion.services.ahara.io/?plan=4884739e-45df-4e74-83f4-b533b98ee53c&phase=ea78221f-a03b-46c1-96d7-b90c526e254b" at 1785,1500 size 740,115 edited "Rolling Local registration design" at 1795371188098
+}
+text footer "Shared Auth0 signs in operators and admins. Rolling Local owns truck review, listing visibility and access." z 24 text-color #536579 text-size 22 at 110,1760 size 2420,55 edited "Rolling Local registration design" at 1795371188098
+text ui_title "FOOD TRUCK DISCOVERY  /  UI CONCEPTS" z 41 jump in-layer ui_mockups text-color #1e3650 text-size 42 bold at 105,1975 size 2460,70 edited "Food truck UI mockups (agent)" at 1795326172148
+text ui_subtitle "Layer 02  ·  Operator controls and public discovery  ·  Conceptual screens, not validated interaction designs" z 42 in-layer ui_mockups text-color #5d7082 text-size 23 at 105,2050 size 2470,50 edited "Food truck UI mockups (agent)" at 1795326172148
+frame ui_widget_screen "01  ·  HOME-SCREEN WIDGET OPTIONS" ui_phone z 43 in-layer ui_mockups link "https://sulion.services.ahara.io/?plan=1e5d89fe-2b7a-4545-bee5-32a05223a975&phase=efbe7dff-fc20-416c-86d6-69ccf46cbdec" at 100,2170 size 750,1030 edited "Widget size correction (agent)" at 1795326652181 {
+  text ui_w_time "9:41" z 44 text-color #23384d text-size 29 bold at 145,2255 size 300,45 edited "Food truck UI mockups (agent)" at 1795326186448
+  text ui_w_date "Saturday, November 21" z 45 text-color #64748b text-size 29 at 145,2310 size 600,48 edited "Food truck UI mockups (agent)" at 1795326186448
+  text ui_w_a_label "OPTION A   /   2 × 1 COMPACT" z 135 text-color #385168 text-size 22 bold at 145,2370 size 635,38 edited "Widget size correction (agent)" at 1795326652181
+  frame ui_w_compact ui_dark z 136 link "https://sulion.services.ahara.io/?plan=1e5d89fe-2b7a-4545-bee5-32a05223a975&phase=efbe7dff-fc20-416c-86d6-69ccf46cbdec" at 142,2420 size 623,245 edited "Widget size correction (agent)" at 1795326662952 {
+    node ui_w_small_toggle "ON / OFF" ui_primary z 137 text-size 29 at 166,2470 size 275,155 edited "Widget size correction (agent)" at 1795326652181
+    node ui_w_small_camera "OPEN CAMERA" ui_surface z 138 text-size 26 at 465,2470 size 275,155 edited "Widget size correction (agent)" at 1795326652181
+  }
+  text ui_w_b_label "OPTION B   /   2 × 2 EXPANDED" z 139 text-color #385168 text-size 22 bold at 145,2700 size 635,36 edited "Widget size correction (agent)" at 1795326652181
+  frame ui_w_expanded ui_dark z 140 link "https://sulion.services.ahara.io/?plan=1e5d89fe-2b7a-4545-bee5-32a05223a975&phase=efbe7dff-fc20-416c-86d6-69ccf46cbdec" at 142,2740 size 426,405 edited "Widget size correction (agent)" at 1795326662952 {
+    text ui_w_big_name "COPPER CANYON TACOS" z 141 text-color #ffffff text-size 23 bold at 169,2785 size 365,39 edited "Widget size correction (agent)" at 1795326652181
+    text ui_w_big_status "●  SHARING OFF" z 142 text-color #f8d7a4 text-size 22 bold at 169,2830 size 355,36 edited "Widget size correction (agent)" at 1795326652181
+    text ui_w_big_info "Last sent: —  ·  Auto-stop 3 PM" z 143 text-color #dbe9f1 text-size 19 at 169,2880 size 375,60 edited "Widget size correction (agent)" at 1795326652181
+    node ui_w_big_toggle "ON / OFF" ui_primary z 144 text-size 23 at 166,2970 size 175,125 edited "Widget size correction (agent)" at 1795326652181
+    node ui_w_big_camera "CAMERA" ui_surface z 145 text-size 23 at 365,2970 size 175,125 edited "Widget size correction (agent)" at 1795326652181
+  }
+  text ui_w_size_note "Both are widgets, not full-screen app views." z 146 text-color #66788a text-size 18 at 145,3160 size 635,31 edited "Widget size correction (agent)" at 1795326652181
+}
+frame ui_settings_screen "02  ·  OPERATOR SETTINGS" ui_phone z 57 in-layer ui_mockups link "https://sulion.services.ahara.io/?plan=1e5d89fe-2b7a-4545-bee5-32a05223a975&phase=efbe7dff-fc20-416c-86d6-69ccf46cbdec" at 940,2170 size 750,1030 edited "Food truck UI mockups (agent)" at 1795326186448 {
+  text ui_s_head "Truck settings" z 58 text-color #1b324b text-size 37 bold at 985,2260 size 610,55 edited "Food truck UI mockups (agent)" at 1795326186448
+  text ui_s_sub "Set once. Adjust only when needed." z 59 text-color #62748a text-size 23 at 985,2320 size 620,38 edited "Food truck UI mockups (agent)" at 1795326186448
+  text ui_s_name_label "TRUCK NAME" z 60 text-color #5a7085 text-size 20 bold at 985,2390 size 540,36 edited "Food truck UI mockups (agent)" at 1795326186448
+  node ui_s_name "Copper Canyon Tacos" ui_input z 61 text-size 26 padding 24 align left at 985,2430 size 655,72 edited "Food truck UI mockups (agent)" at 1795326186448
+  text ui_s_cuisine_label "CUISINE" z 62 text-color #5a7085 text-size 20 bold at 985,2525 size 540,32 edited "Food truck UI mockups (agent)" at 1795326186448
+  node ui_s_cuisine "Mexican · Street food" ui_input z 63 text-size 25 padding 24 align left at 985,2560 size 655,72 edited "Food truck UI mockups (agent)" at 1795326186448
+  text ui_s_hours_label "NORMAL OPERATING HOURS" z 64 text-color #5a7085 text-size 20 bold at 985,2650 size 600,35 edited "Food truck UI mockups (agent)" at 1795326186448
+  node ui_s_hours "Tue–Sat   11:00 AM – 3:00 PM" ui_input z 65 text-size 24 padding 22 align left at 985,2690 size 655,74 edited "Food truck UI mockups (agent)" at 1795326186448
+  text ui_s_area_label "DEFAULT OPERATING AREA" z 66 text-color #5a7085 text-size 20 bold at 985,2785 size 620,34 edited "Food truck UI mockups (agent)" at 1795326186448
+  node ui_s_center "Center   Prescott, AZ" ui_input z 67 text-size 23 padding 22 align left at 985,2820 size 655,65 edited "Food truck UI mockups (agent)" at 1795326186448
+  node ui_s_radius "Radius   25 miles" ui_input z 68 text-size 23 padding 22 align left at 985,2900 size 655,65 edited "Food truck UI mockups (agent)" at 1795326186448
+  frame ui_s_event "TEMPORARY EVENT OVERRIDE" ui_warning z 69 at 983,2990 size 657,176 edited "Food truck UI mockups (agent)" at 1795326186448 {
+    text ui_s_event_desc "Expand your area for a special event." z 70 text-size 21 at 1007,3040 size 600,39 edited "Food truck UI mockups (agent)" at 1795326186448
+    node ui_s_event_action "SET EVENT LOCATION + END TIME" ui_surface z 71 text-size 19 at 1008,3090 size 600,52 edited "Food truck UI mockups (agent)" at 1795326186448
+  }
+}
+frame ui_live_screen "03  ·  ACTIVE TRACKING" ui_phone z 72 in-layer ui_mockups link "https://sulion.services.ahara.io/?plan=1e5d89fe-2b7a-4545-bee5-32a05223a975&phase=efbe7dff-fc20-416c-86d6-69ccf46cbdec" at 1780,2170 size 750,1030 edited "Food truck UI mockups (agent)" at 1795326186448 {
+  text ui_l_head "You're visible" z 73 text-color #176e57 text-size 38 bold at 1825,2260 size 640,60 edited "Food truck UI mockups (agent)" at 1795326186448
+  text ui_l_sub "Your public marker follows this phone." z 74 text-color #5c7082 text-size 22 at 1825,2325 size 655,40 edited "Food truck UI mockups (agent)" at 1795326186448
+  frame ui_l_map "LIVE PHONE LOCATION" ui_map z 75 at 1825,2400 size 655,410 edited "Food truck UI mockups (agent)" at 1795326186448 {
+    node ui_l_road2 ui_muted z 77 at 2040,2450 size 22,240 edited "Food truck UI mockups (agent)" at 1795326205283
+    node ui_l_road1 ui_muted z 76 at 1875,2520 size 560,20 edited "Food truck UI mockups (agent)" at 1795326186448
+    node ui_l_pin "●" ui_primary z 78 text-size 48 at 2110,2590 size 105,105 edited "Food truck UI mockups (agent)" at 1795326186448
+    text ui_l_mapnote "Prescott area · updated 2 min ago" z 79 text-color #476554 text-size 20 at 1850,2745 size 580,35 edited "Food truck UI mockups (agent)" at 1795326186448
+  }
+  node ui_l_status "●  BROADCASTING  ·  LAST SENT 2 MIN AGO" ui_light z 80 text-size 21 at 1825,2840 size 655,70 edited "Food truck UI mockups (agent)" at 1795326186448
+  text ui_l_rule "Auto-stop: 3:00 PM or outside your area" z 81 text-color #556d7f text-size 22 at 1825,2930 size 650,45 edited "Food truck UI mockups (agent)" at 1795326186448
+  node ui_l_stop "STOP SHARING" z 82 fill #9d3e42 line #9d3e42 text-color #ffffff text-size 29 bold at 1825,3010 size 655,84 edited "Food truck UI mockups (agent)" at 1795326186448
+  text ui_l_note "Sharing never resumes automatically." z 83 text-color #617589 text-size 21 at 1825,3130 size 655,40 edited "Food truck UI mockups (agent)" at 1795326186448
+}
+frame ui_menu_screen "04  ·  MENU PHOTO CAPTURE" ui_phone z 84 in-layer ui_mockups link "https://sulion.services.ahara.io/?plan=1e5d89fe-2b7a-4545-bee5-32a05223a975&phase=efbe7dff-fc20-416c-86d6-69ccf46cbdec" at 100,3300 size 750,1030 edited "Food truck UI mockups (agent)" at 1795326199420 {
+  text ui_m_head "Update today's menu" z 85 text-color #1b324b text-size 35 bold at 145,3390 size 650,55 edited "Food truck UI mockups (agent)" at 1795326199420
+  text ui_m_sub "Take a photo. No menu editor required." z 86 text-color #63778a text-size 22 at 145,3455 size 650,39 edited "Food truck UI mockups (agent)" at 1795326199420
+  frame ui_m_preview "CAMERA PREVIEW" ui_dark z 87 at 145,3530 size 660,490 edited "Food truck UI mockups (agent)" at 1795326199420 {
+    text ui_m_board "COPPER CANYON TACOS" z 88 text-color #ffffff text-size 31 bold align center at 180,3630 size 585,50 edited "Food truck UI mockups (agent)" at 1795326199420
+    node ui_m_divider z 89 fill #b2c9d5 line #b2c9d5 at 250,3705 size 450,4 edited "Food truck UI mockups (agent)" at 1795326199420
+    text ui_m_item1 "Street tacos     $4" z 90 text-color #f7f3e8 text-size 27 at 195,3750 size 550,40 edited "Food truck UI mockups (agent)" at 1795326199420
+    text ui_m_item2 "Loaded nachos   $11" z 91 text-color #f7f3e8 text-size 27 at 195,3815 size 550,40 edited "Food truck UI mockups (agent)" at 1795326199420
+    text ui_m_item3 "Agua fresca       $5" z 92 text-color #f7f3e8 text-size 27 at 195,3880 size 550,40 edited "Food truck UI mockups (agent)" at 1795326199420
+  }
+  node ui_m_retake "RETAKE" ui_input z 93 text-size 25 at 145,4050 size 310,77 edited "Food truck UI mockups (agent)" at 1795326199420
+  node ui_m_publish "PUBLISH PHOTO" ui_primary z 94 text-size 25 at 475,4050 size 330,77 edited "Food truck UI mockups (agent)" at 1795326199420
+  text ui_m_timestamp "Published menu shows: Updated today, 11:42 AM" z 95 text-color #5c7184 text-size 21 at 145,4150 size 660,45 edited "Food truck UI mockups (agent)" at 1795326199420
+  text ui_m_privacy "Photo metadata removed before publishing." z 96 text-color #5c7184 text-size 21 at 145,4205 size 660,42 edited "Food truck UI mockups (agent)" at 1795326199420
+}
+frame ui_consumer_map_screen "05  ·  CONSUMER MAP  /  WEB" ui_phone z 97 in-layer ui_mockups link "https://sulion.services.ahara.io/?plan=1e5d89fe-2b7a-4545-bee5-32a05223a975&phase=1fc0e83e-65e9-444d-ba61-614cb7280c28" at 940,3300 size 750,1030 edited "Food truck UI mockups (agent)" at 1795326199420 {
+  text ui_c_head "Find a food truck" z 98 text-color #1a3249 text-size 36 bold at 985,3390 size 340,54 edited "Food truck UI mockups (agent)" at 1795326199420
+  text ui_c_ahara "An Ahara product" z 146 text-size 19 text-color #168060 link "https://ahara.io" at 1340,3405 size 166,33
+  node ui_c_site_menu "Menu · About" ui_light z 144 text-size 19 at 1505,3390 size 135,54
+  node ui_c_search "Search trucks or cuisine…" ui_input z 99 text-size 24 padding 22 align left at 985,3465 size 655,72 edited "Food truck UI mockups (agent)" at 1795326199420
+  node ui_c_tabmap "MAP" ui_primary z 100 text-size 22 at 985,3550 size 322,58 edited "Food truck UI mockups (agent)" at 1795326199420
+  node ui_c_tablist "DIRECTORY" ui_muted z 101 text-size 22 at 1320,3550 size 320,58 edited "Food truck UI mockups (agent)" at 1795326199420
+  frame ui_c_map "PRESCOTT AREA" ui_map z 102 at 985,3635 size 655,390 edited "Food truck UI mockups (agent)" at 1795326199420 {
+    node ui_c_road3 ui_muted z 105 at 1190,3695 size 17,295 edited "Food truck UI mockups (agent)" at 1795326199420
+    node ui_c_road4 ui_muted z 106 at 1430,3695 size 17,295 edited "Food truck UI mockups (agent)" at 1795326199420
+    node ui_c_road1 ui_muted z 103 at 1015,3730 size 595,17 edited "Food truck UI mockups (agent)" at 1795326199420
+    node ui_c_pin1 "1" ui_primary z 107 text-size 27 at 1125,3770 size 67,67 edited "Food truck UI mockups (agent)" at 1795326199420
+    node ui_c_pin2 "2" ui_primary z 108 text-size 27 at 1390,3810 size 67,67 edited "Food truck UI mockups (agent)" at 1795326199420
+    node ui_c_road2 ui_muted z 104 at 1015,3900 size 595,17 edited "Food truck UI mockups (agent)" at 1795326199420
+    node ui_c_pin3 "3" ui_primary z 109 text-size 27 at 1280,3925 size 67,67 edited "Food truck UI mockups (agent)" at 1795326199420
+  }
+  frame ui_c_sheet "COPPER CANYON TACOS" ui_surface z 110 at 985,4050 size 659,236 edited "Food truck UI mockups (agent)" at 1795326199420 {
+    text ui_c_status "● ACTIVE  ·  LOCATION UPDATED 4 MIN AGO" z 111 text-color #168060 text-size 19 bold at 1010,4110 size 610,34 edited "Food truck UI mockups (agent)" at 1795326199420
+    text ui_c_desc "Mexican · Street food" z 112 text-color #52697d text-size 23 at 1010,4150 size 605,35 edited "Food truck UI mockups (agent)" at 1795326199420
+    node ui_c_menu_btn "VIEW MENU PHOTO" ui_primary z 113 text-size 23 at 1010,4200 size 605,62 edited "Food truck UI mockups (agent)" at 1795326199420
+  }
+}
+frame ui_directory_screen "06  ·  COMPLETE DIRECTORY  /  WEB" ui_phone z 114 in-layer ui_mockups link "https://sulion.services.ahara.io/?plan=1e5d89fe-2b7a-4545-bee5-32a05223a975&phase=1fc0e83e-65e9-444d-ba61-614cb7280c28" at 1780,3300 size 750,1030 edited "Food truck UI mockups (agent)" at 1795326199420 {
+  text ui_d_head "All food trucks" z 115 text-color #1a3249 text-size 36 bold at 1825,3390 size 350,55 edited "Food truck UI mockups (agent)" at 1795326199420
+  text ui_d_ahara "An Ahara product" z 147 text-size 19 text-color #168060 link "https://ahara.io" at 2180,3405 size 166,33
+  node ui_d_site_menu "Menu · About" ui_light z 148 text-size 19 at 2345,3390 size 135,54
+  node ui_d_search "Search name or cuisine…" ui_input z 116 text-size 23 padding 22 align left at 1825,3465 size 655,70 edited "Food truck UI mockups (agent)" at 1795326199420
+  node ui_d_all "ALL" ui_primary z 117 text-size 21 at 1825,3555 size 140,56 edited "Food truck UI mockups (agent)" at 1795326199420
+  node ui_d_mex "MEXICAN" ui_muted z 118 text-size 21 at 1980,3555 size 165,56 edited "Food truck UI mockups (agent)" at 1795326199420
+  node ui_d_bbq "BBQ" ui_muted z 119 text-size 21 at 2160,3555 size 120,56 edited "Food truck UI mockups (agent)" at 1795326199420
+  node ui_d_coffee "COFFEE" ui_muted z 120 text-size 21 at 2295,3555 size 185,56 edited "Food truck UI mockups (agent)" at 1795326199420
+  frame ui_d_card1 "COPPER CANYON TACOS" ui_surface z 121 at 1825,3650 size 655,178 edited "Food truck UI mockups (agent)" at 1795326199420 {
+    text ui_d_card1sub "Mexican · Street food" z 122 text-color #5a7085 text-size 22 at 1855,3700 size 550,34 edited "Food truck UI mockups (agent)" at 1795326199420
+    node ui_d_active "● ACTIVE NOW" ui_light z 123 text-size 20 at 1855,3750 size 245,54 edited "Food truck UI mockups (agent)" at 1795326199420
+    text ui_d_photo1 "Menu updated today" z 124 text-color #5a7085 text-size 20 at 2120,3755 size 330,35 edited "Food truck UI mockups (agent)" at 1795326199420
+  }
+  frame ui_d_card2 "SMOKEHOUSE ROAD" ui_surface z 125 at 1825,3850 size 655,178 edited "Food truck UI mockups (agent)" at 1795326199420 {
+    text ui_d_card2sub "BBQ · Smoked meats" z 126 text-color #5a7085 text-size 22 at 1855,3900 size 550,34 edited "Food truck UI mockups (agent)" at 1795326199420
+    node ui_d_offline "OFFLINE" ui_muted z 127 text-size 20 at 1855,3950 size 245,54 edited "Food truck UI mockups (agent)" at 1795326199420
+    text ui_d_photo2 "Menu updated 3 days ago" z 128 text-color #5a7085 text-size 20 at 2120,3955 size 335,35 edited "Food truck UI mockups (agent)" at 1795326199420
+  }
+  frame ui_d_card3 "JUNIPER COFFEE CO." ui_surface z 129 at 1825,4050 size 655,178 edited "Food truck UI mockups (agent)" at 1795326199420 {
+    text ui_d_card3sub "Coffee · Pastries" z 130 text-color #5a7085 text-size 22 at 1855,4100 size 550,34 edited "Food truck UI mockups (agent)" at 1795326199420
+    node ui_d_offline3 "OFFLINE" ui_muted z 131 text-size 20 at 1855,4150 size 245,54 edited "Food truck UI mockups (agent)" at 1795326199420
+    text ui_d_photo3 "Menu updated last week" z 132 text-color #5a7085 text-size 20 at 2120,4155 size 335,35 edited "Food truck UI mockups (agent)" at 1795326199420
+  }
+  text ui_d_footer "Offline trucks stay listed. No past phone location shown." z 133 text-color #5d7085 text-size 19 at 1825,4260 size 655,38 edited "Food truck UI mockups (agent)" at 1795326199420
+}
+text ui_mockup_footer "Concept mockups  ·  Example truck names, menus, times and locations are illustrative  ·  Linked to Sulion operator and consumer phases" z 134 in-layer ui_mockups text-color #5e7285 text-size 21 at 110,4390 size 2460,50 edited "Food truck UI mockups (agent)" at 1795326199420
+app.right -> gateway.left "operator API" as mdehivd z 37 via 723,613 723,413 edited "Rolling Local documentation" at 1795327891354
+photo.bottom -> s3.bottom "signed menu image upload" as c6u35ou z 38 via 368,1170 1553,1170 edited "Rolling Local documentation" at 1795327891354
+gateway.right -> ownerapi.left "JWT" as hm74oln z 28 in aws_lane edited "Rolling Local documentation" at 1795327891354
+widget.bottom -> app.top "control" as rc7yyc6 z 25 in operator_lane edited "Food truck architecture (agent)" at 1795315910047
+gateway.bottom -> publicapi.top "public GET" as o0w6n2e z 29 in aws_lane edited "Food truck architecture (agent)" at 1795315910047
+webapp.bottom -> map.top "browse" as vxqnfyn z 34 in consumer_lane edited "Food truck architecture (agent)" at 1795315910047
+cdn.right -> webapp.right as fuaxr39 z 35 in consumer_lane via 2554,1030 2554,416 edited "Rolling Local documentation" at 1795327891354
+ownerapi.bottom -> dynamo.top "state + menu references" as j1k8n7m z 30 in aws_lane edited "Rolling Local documentation" at 1795327891354
+map.left -> gateway.top "directory + active feed requests" as f8rvug0 z 39 via 1880,622 1880,321 1055,321 edited "Rolling Local documentation" at 1795327891354
+app.right -> photo.right "camera" as ky3b7us z 27 in operator_lane via 624,613 624,1028 edited "Rolling Local documentation" at 1795327922506
+app.bottom -> tracking.top "sharing session" as sv79d6e z 26 in operator_lane edited "Food truck architecture (agent)" at 1795315910047
+map.bottom -> tile.top "tiles" as ke79vfa z 36 in consumer_lane edited "Food truck architecture (agent)" at 1795315910047
+publicapi.right -> dynamo.left "read" as m4y94p4 z 31 in aws_lane edited "Food truck architecture (agent)" at 1795315910047
+privacy.top ..> publicapi.bottom "eligible only" as w8v1i7w z 33 in aws_lane edited "Food truck architecture (agent)" at 1795315910047
+webapp.left -> gateway.top "registration + admin API" as web_operations z 145 via 1910,416 1910,294 1055,294
+s3.right -> cdn.left "origin" as d78d0hl z 40 edited "Food truck architecture (agent)" at 1795315910047
+opening main_title

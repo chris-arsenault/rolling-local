@@ -7,7 +7,7 @@ use lambda_http::{
 };
 use rolling_local_api::{
     Api, OperatorConfig, Surface,
-    domain::{Fix, Position, Profile, Session},
+    domain::{Fix, Position, Profile, PublicTruck, Session, Truck},
     media::{Media, MediaError, UploadTicket},
     storage::{Record, Store, StoreError},
 };
@@ -20,7 +20,8 @@ use uuid::Uuid;
 
 #[derive(Default)]
 struct Records {
-    profiles: HashMap<Uuid, Record<Profile>>,
+    trucks: HashMap<Uuid, Record<Truck>>,
+    operators: HashMap<String, Uuid>,
     sessions: HashMap<Uuid, Record<Session>>,
     starts: HashSet<(Uuid, Uuid)>,
 }
@@ -30,25 +31,42 @@ struct Memory(Mutex<Records>);
 
 #[async_trait]
 impl Store for Memory {
-    async fn profile(&self, owner: Uuid) -> Result<Option<Record<Profile>>, StoreError> {
-        Ok(self.0.lock().unwrap().profiles.get(&owner).cloned())
+    async fn truck(&self, id: Uuid) -> Result<Option<Record<Truck>>, StoreError> {
+        Ok(self.0.lock().unwrap().trucks.get(&id).cloned())
+    }
+
+    async fn owned_truck(&self, owner: &str) -> Result<Option<Record<Truck>>, StoreError> {
+        let db = self.0.lock().unwrap();
+        Ok(db
+            .operators
+            .get(owner)
+            .and_then(|id| db.trucks.get(id))
+            .cloned())
     }
 
     async fn session(&self, owner: Uuid) -> Result<Option<Record<Session>>, StoreError> {
         Ok(self.0.lock().unwrap().sessions.get(&owner).cloned())
     }
 
-    async fn put_profile(
+    async fn put_truck(
         &self,
-        owner: Uuid,
         previous: Option<Uuid>,
-        profile: Record<Profile>,
+        truck: Record<Truck>,
+        link_owner: bool,
     ) -> Result<(), StoreError> {
         let mut db = self.0.lock().unwrap();
-        if db.profiles.get(&owner).map(|entry| entry.version) != previous {
+        let id = truck.value.id;
+        if db.trucks.get(&id).map(|entry| entry.version) != previous {
             return Err(StoreError::Conflict);
         }
-        db.profiles.insert(owner, profile);
+        if link_owner {
+            let subject = truck.value.operator_subject.clone().unwrap();
+            if db.operators.contains_key(&subject) {
+                return Err(StoreError::Conflict);
+            }
+            db.operators.insert(subject, id);
+        }
+        db.trucks.insert(id, truck);
         Ok(())
     }
 
@@ -61,7 +79,7 @@ impl Store for Memory {
         start_command: bool,
     ) -> Result<(), StoreError> {
         let mut db = self.0.lock().unwrap();
-        if db.profiles.get(&owner).map(|entry| entry.version) != Some(profile_version)
+        if db.trucks.get(&owner).map(|entry| entry.version) != Some(profile_version)
             || db.sessions.get(&owner).map(|entry| entry.version) != previous
             || (start_command && !db.starts.insert((owner, session.value.id)))
         {
@@ -83,15 +101,15 @@ impl Store for Memory {
         Ok(())
     }
 
-    async fn directory(&self) -> Result<Vec<(Profile, Option<Session>)>, StoreError> {
+    async fn directory(&self) -> Result<Vec<(Record<Truck>, Option<Session>)>, StoreError> {
         let db = self.0.lock().unwrap();
         Ok(db
-            .profiles
+            .trucks
             .iter()
-            .map(|(owner, profile)| {
+            .map(|(id, truck)| {
                 (
-                    profile.value.clone(),
-                    db.sessions.get(owner).map(|record| record.value.clone()),
+                    truck.clone(),
+                    db.sessions.get(id).map(|record| record.value.clone()),
                 )
             })
             .collect())
@@ -127,9 +145,15 @@ fn apis() -> (Api, Api) {
     let store = Arc::new(Memory::default());
     let media = Arc::new(MockMedia::default());
     let config = OperatorConfig {
-        cognito_domain: "https://signin.test".into(),
-        client_id: "operator-client".into(),
+        issuer: "https://signin.test/".into(),
+        audience: "https://api.rolling-local.test".into(),
+        connection: "ahara".into(),
+        web_client_id: "operator-client".into(),
+        ios_client_id: "ios-client".into(),
+        android_client_id: "android-client".into(),
         redirect_uri: "rollinglocal://oauth".into(),
+        public_site: "https://rolling-local.test".into(),
+        admin_subject: Some("auth0|owner".into()),
     };
     (
         Api::new(
@@ -143,7 +167,24 @@ fn apis() -> (Api, Api) {
 }
 
 fn auth(owner: Uuid, client: &str) -> String {
-    let claims = json!({ "sub": owner, "client_id": client, "token_use": "access" });
+    auth_with_audience(
+        &format!("auth0|{owner}"),
+        client,
+        "https://api.rolling-local.test",
+    )
+}
+
+fn admin_token() -> String {
+    auth_with_audience(
+        "auth0|owner",
+        "operator-client",
+        "https://api.rolling-local.test",
+    )
+}
+
+fn auth_with_audience(owner: &str, client: &str, audience: &str) -> String {
+    let claims =
+        json!({ "sub": owner, "iss": "https://signin.test/", "azp": client, "aud": [audience] });
     format!(
         "Bearer header.{}.signature",
         URL_SAFE_NO_PAD.encode(claims.to_string())
@@ -210,6 +251,21 @@ async fn trucks(public: &Api, time: DateTime<Utc>) -> Vec<Value> {
 }
 
 async fn enroll(operator: &Api, token: &str, settings: Value) {
+    let registration = request(
+        operator,
+        Method::POST,
+        "/operator/registration",
+        Some(token),
+        json!({"name": settings["name"], "cuisine": settings["cuisine"]}),
+        now(),
+    )
+    .await;
+    assert_eq!(registration.status(), StatusCode::OK);
+    let id = value(&registration)["registration"]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    decide(operator, &id, "accept").await;
     let result = request(
         operator,
         Method::PUT,
@@ -220,6 +276,186 @@ async fn enroll(operator: &Api, token: &str, settings: Value) {
     )
     .await;
     assert_eq!(result.status(), StatusCode::OK, "{:?}", value(&result));
+}
+
+async fn decide(api: &Api, id: &str, decision: &str) {
+    let admin = admin_token();
+    let response = request(
+        api,
+        Method::GET,
+        "/admin/trucks",
+        Some(&admin),
+        Value::Null,
+        now(),
+    )
+    .await;
+    let trucks = value(&response);
+    let entry = trucks["trucks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|truck| truck["id"] == id)
+        .unwrap();
+    let response = request(
+        api,
+        Method::PUT,
+        &format!("/admin/trucks/{id}"),
+        Some(&admin),
+        json!({"version": entry["version"], "decision": decision}),
+        now(),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK, "{:?}", value(&response));
+}
+
+#[tokio::test]
+async fn registration_is_private_until_owner_approval_and_manual_entries_can_publish_offline() {
+    let (api, public) = apis();
+    let admin = admin_token();
+    let first = auth(Uuid::new_v4(), "operator-client");
+    let second = auth(Uuid::new_v4(), "android-client");
+    let application = json!({"name": "Copper Taco", "cuisine": "Tacos"});
+    let submit = |token, data| {
+        request(
+            &api,
+            Method::POST,
+            "/operator/registration",
+            Some(token),
+            data,
+            now(),
+        )
+    };
+    let original = submit(&first, application.clone()).await;
+    let original = value(&original)["registration"].clone();
+    assert_eq!(original["status"], "pending");
+    let retry = submit(&first, application).await;
+    assert_eq!(value(&retry)["registration"]["id"], original["id"]);
+    let declined = submit(&second, json!({"name": "Second Truck", "cuisine": "BBQ"})).await;
+    let declined = value(&declined)["registration"].clone();
+    assert!(trucks(&public, now()).await.is_empty());
+
+    let unauthorized = request(
+        &api,
+        Method::GET,
+        "/admin/trucks",
+        Some(&first),
+        Value::Null,
+        now(),
+    )
+    .await;
+    assert_eq!(unauthorized.status(), StatusCode::FORBIDDEN);
+    let wrong_audience =
+        auth_with_audience("auth0|owner", "operator-client", "https://another-app.test");
+    let unauthorized = request(
+        &api,
+        Method::GET,
+        "/admin/trucks",
+        Some(&wrong_audience),
+        Value::Null,
+        now(),
+    )
+    .await;
+    assert_eq!(unauthorized.status(), StatusCode::UNAUTHORIZED);
+    let upload = request(
+        &api,
+        Method::POST,
+        "/operator/menu/upload",
+        Some(&first),
+        json!({"bytes": 320}),
+        now(),
+    )
+    .await;
+    assert_eq!(upload.status(), StatusCode::FORBIDDEN);
+
+    decide(&api, original["id"].as_str().unwrap(), "accept").await;
+    decide(&api, declined["id"].as_str().unwrap(), "reject").await;
+    let declined_view = request(
+        &api,
+        Method::GET,
+        "/operator",
+        Some(&second),
+        Value::Null,
+        now(),
+    )
+    .await;
+    assert_eq!(value(&declined_view)["registration"]["status"], "rejected");
+
+    let manual_id = Uuid::new_v4();
+    let data =
+        json!({"id": manual_id, "name": "Saturday Bakery", "cuisine": "Bakery", "publish": true});
+    for _ in 0..2 {
+        let created = request(
+            &api,
+            Method::POST,
+            "/admin/trucks",
+            Some(&admin),
+            data.clone(),
+            now(),
+        )
+        .await;
+        assert_eq!(created.status(), StatusCode::OK);
+        assert_eq!(value(&created)["status"], "approved");
+        assert!(value(&created)["operatorSubject"].is_null());
+    }
+
+    let entries = trucks(&public, now()).await;
+    assert_eq!(entries.len(), 2);
+    assert!(entries.iter().any(|entry| entry["id"] == original["id"]));
+    assert!(
+        entries
+            .iter()
+            .any(|entry| entry["id"] == manual_id.to_string())
+    );
+    for entry in entries {
+        assert_eq!(entry["active"], false);
+        assert!(entry.get("location").is_none());
+        assert!(entry.get("operatorSubject").is_none());
+        assert!(entry.get("review").is_none());
+    }
+}
+
+#[tokio::test]
+async fn preflight_accepts_only_the_product_site_and_reveals_no_admin_data() {
+    let (_, public) = apis();
+    for (origin, status) in [
+        ("https://rolling-local.test", StatusCode::NO_CONTENT),
+        ("https://other.test", StatusCode::FORBIDDEN),
+    ] {
+        let request = Request::builder()
+            .method(Method::OPTIONS)
+            .uri("/admin/trucks")
+            .header("origin", origin)
+            .body(Body::Empty)
+            .unwrap();
+        let reply = public.handle(request, now()).await;
+        assert_eq!(reply.status(), status);
+        assert_eq!(
+            reply.headers().contains_key("access-control-allow-origin"),
+            status == StatusCode::NO_CONTENT
+        );
+    }
+}
+
+#[test]
+fn legacy_profiles_keep_listing_and_menu_but_never_reuse_an_old_session() {
+    let truck_id = Uuid::new_v4();
+    let menu_url = "https://rolling-local.test/data/menus/old.jpg";
+    let profile: Profile = serde_json::from_value(json!({
+        "id": truck_id,
+        "policyId": Uuid::new_v4(),
+        "settings": settings("Legacy Truck"),
+        "menu": {"id": Uuid::new_v4(), "capturedAt": now(), "publishedAt": now(), "url": menu_url},
+    }))
+    .unwrap();
+    let session = Session::begin(&profile, Uuid::new_v4(), fix(34.54, now()), now()).unwrap();
+    let truck = Truck::from_legacy(profile);
+    assert!(truck.operator_subject.is_none());
+    let public =
+        serde_json::to_value(PublicTruck::from_truck(truck, Some(&session), now())).unwrap();
+    assert_eq!(public["id"], truck_id.to_string());
+    assert_eq!(public["menu"]["url"], menu_url);
+    assert_eq!(public["active"], false);
+    assert!(public.get("location").is_none());
 }
 
 #[tokio::test]

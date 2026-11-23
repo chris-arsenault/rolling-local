@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -49,12 +50,28 @@ import kotlin.coroutines.suspendCoroutine
 
 @Serializable data class Menu(val url: String, val capturedAt: String, val publishedAt: String)
 @Serializable data class Profile(val id: String, val settings: Settings, val menu: Menu?)
+@Serializable enum class TruckStatus {
+    @SerialName("pending") PENDING,
+    @SerialName("approved") APPROVED,
+    @SerialName("rejected") REJECTED,
+}
+@Serializable data class Registration(val name: String, val cuisine: String, val status: TruckStatus)
 @Serializable data class Sharing(val id: String, val publishedAt: String, val expiresAt: String, val closesAt: String) {
     fun expired(now: Instant = Instant.now()): Boolean = now >= Instant.parse(expiresAt)
 }
-@Serializable data class OperatorState(val profile: Profile? = null, val session: Sharing? = null)
+@Serializable data class OperatorState(
+    val profile: Profile? = null,
+    val session: Sharing? = null,
+    val registration: Registration? = null,
+)
 @Serializable data class Fix(val position: Position, val accuracyMeters: Double, val recordedAt: String)
-@Serializable private data class LoginConfig(val cognitoDomain: String, val clientId: String, val redirectUri: String)
+@Serializable private data class LoginConfig(
+    val issuer: String,
+    val audience: String,
+    val connection: String,
+    val androidClientId: String,
+    val redirectUri: String,
+)
 @Serializable private data class Start(val id: String, val fix: Fix)
 @Serializable private data class Upload(val bytes: Int)
 @Serializable private data class Ticket(val id: String, val url: String)
@@ -73,15 +90,17 @@ class OperatorClient(context: Context) {
 
     suspend fun signInIntent(): Intent {
         val config = request<LoginConfig>("public/config", authenticated = false)
-        val domain = Uri.parse(config.cognitoDomain)
+        val domain = Uri.parse(config.issuer)
         require(domain.scheme == "https")
         val serviceConfig = AuthorizationServiceConfiguration(
-            domain.buildUpon().appendPath("oauth2").appendPath("authorize").build(),
-            domain.buildUpon().appendPath("oauth2").appendPath("token").build(),
+            domain.buildUpon().appendPath("authorize").build(),
+            domain.buildUpon().appendPath("oauth").appendPath("token").build(),
         )
         val request = AuthorizationRequest.Builder(
-            serviceConfig, config.clientId, ResponseTypeValues.CODE, Uri.parse(config.redirectUri),
-        ).setScope("openid email").build()
+            serviceConfig, config.androidClientId, ResponseTypeValues.CODE, Uri.parse(config.redirectUri),
+        ).setScope("openid email offline_access")
+            .setAdditionalParameters(mapOf("audience" to config.audience, "connection" to config.connection))
+            .build()
         return service.getAuthorizationRequestIntent(request)
     }
 
@@ -172,7 +191,7 @@ class OperatorClient(context: Context) {
 }
 
 private class LoginVault(context: Context) {
-    private val prefs = context.getSharedPreferences("login", Context.MODE_PRIVATE)
+    private val prefs = context.getSharedPreferences("auth0-login", Context.MODE_PRIVATE)
     private val alias = "rolling-local-operator"
     private val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
 

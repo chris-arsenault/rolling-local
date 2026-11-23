@@ -46,6 +46,16 @@ struct Profile: Codable {
     let menu: Menu?
 }
 
+enum TruckStatus: String, Codable {
+    case pending, approved, rejected
+}
+
+struct Registration: Codable {
+    let name: String
+    let cuisine: String
+    let status: TruckStatus
+}
+
 struct Fix: Codable {
     let position: Position
     let accuracyMeters: Double
@@ -62,11 +72,14 @@ struct Sharing: Codable {
 struct OperatorView: Codable {
     let profile: Profile?
     let session: Sharing?
+    let registration: Registration?
 }
 
 struct LoginConfig: Codable {
-    let cognitoDomain: URL
-    let clientId: String
+    let issuer: URL
+    let audience: String
+    let connection: String
+    let iosClientId: String
     let redirectUri: String
 }
 
@@ -156,11 +169,12 @@ private struct Tokens: Codable {
     private let vault: [String: Any] = [
         kSecClass as String: kSecClassGenericPassword,
         kSecAttrService as String: "RollingLocal",
-        kSecAttrAccount as String: "oauth-refresh"
+        kSecAttrAccount as String: "auth0-refresh"
     ]
     private var access: String?
     private var expiresAt = Date.distantPast
     private var webSession: ASWebAuthenticationSession?
+    private var refreshTask: Task<String, Error>?
 
     var canRestore: Bool { refreshToken != nil }
 
@@ -174,6 +188,8 @@ private struct Tokens: Codable {
     }
 
     func clear() {
+        refreshTask?.cancel()
+        refreshTask = nil
         access = nil
         expiresAt = .distantPast
         SecItemDelete(vault as CFDictionary)
@@ -188,12 +204,14 @@ private struct Tokens: Codable {
         let verifier = urlSafe(Data(bytes))
         let challenge = urlSafe(Data(SHA256.hash(data: Data(verifier.utf8))))
         let state = UUID().uuidString
-        var url = URLComponents(url: config.cognitoDomain.appendingPathComponent("oauth2/authorize"), resolvingAgainstBaseURL: false)!
+        var url = URLComponents(url: config.issuer.appendingPathComponent("authorize"), resolvingAgainstBaseURL: false)!
         url.queryItems = [
             URLQueryItem(name: "response_type", value: "code"),
-            URLQueryItem(name: "client_id", value: config.clientId),
+            URLQueryItem(name: "client_id", value: config.iosClientId),
             URLQueryItem(name: "redirect_uri", value: config.redirectUri),
-            URLQueryItem(name: "scope", value: "openid email"),
+            URLQueryItem(name: "scope", value: "openid email offline_access"),
+            URLQueryItem(name: "audience", value: config.audience),
+            URLQueryItem(name: "connection", value: config.connection),
             URLQueryItem(name: "state", value: state),
             URLQueryItem(name: "code_challenge_method", value: "S256"),
             URLQueryItem(name: "code_challenge", value: challenge)
@@ -224,8 +242,14 @@ private struct Tokens: Codable {
 
     func token(config: LoginConfig) async throws -> String {
         if let access, expiresAt.timeIntervalSinceNow > 45 { return access }
+        if let refreshTask { return try await refreshTask.value }
         guard let refreshToken else { throw ServerError(code: 401, message: "Sign in to continue.") }
-        return try await exchange(config: config, parameters: ["grant_type": "refresh_token", "refresh_token": refreshToken])
+        let task = Task {
+            try await exchange(config: config, parameters: ["grant_type": "refresh_token", "refresh_token": refreshToken])
+        }
+        refreshTask = task
+        defer { refreshTask = nil }
+        return try await task.value
     }
 
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
@@ -235,16 +259,17 @@ private struct Tokens: Codable {
     }
 
     private func exchange(config: LoginConfig, parameters: [String: String]) async throws -> String {
-        var request = URLRequest(url: config.cognitoDomain.appendingPathComponent("oauth2/token"))
+        var request = URLRequest(url: config.issuer.appendingPathComponent("oauth/token"))
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         var values = parameters
-        values["client_id"] = config.clientId
+        values["client_id"] = config.iosClientId
         let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
         let parts = values.map { key, value in "\(key)=\(value.addingPercentEncoding(withAllowedCharacters: allowed) ?? "")" }
         request.httpBody = Data(parts.joined(separator: "&").utf8)
         let (data, response) = try await URLSession.shared.data(for: request)
         let tokens = try decoder().decode(Tokens.self, from: checkedData(data, response))
+        try Task.checkCancellation()
         if let refresh = tokens.refreshToken {
             var item = vault
             item[kSecValueData as String] = Data(refresh.utf8)

@@ -16,6 +16,7 @@ private struct PublishMenu: Encodable { let id: UUID; let capturedAt: Date }
 
 @MainActor final class OperatorModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published private(set) var profile: Profile?
+    @Published private(set) var registration: Registration?
     @Published private(set) var sharing: Sharing?
     @Published private(set) var signedIn = false
     @Published private(set) var busy = false
@@ -69,7 +70,20 @@ private struct PublishMenu: Encodable { let id: UUID; let capturedAt: Date }
         login.clear()
         signedIn = false
         profile = nil
+        registration = nil
         refreshWidget()
+    }
+
+    func refreshRegistration() async {
+        await operation { try await load() }
+    }
+
+    var editableSettings: Settings {
+        if let profile { return profile.settings }
+        var settings = Settings()
+        settings.name = registration?.name ?? ""
+        settings.cuisine = registration?.cuisine ?? ""
+        return settings
     }
 
     func handleWidget() async {
@@ -88,8 +102,7 @@ private struct PublishMenu: Encodable { let id: UUID; let capturedAt: Date }
             return
         }
         guard profile != nil else {
-            message = signedIn ? "Set up your truck to share its location." : "Sign in to share your location."
-            showSettings = signedIn
+            message = setupMessage(action: "share your location")
             return
         }
         message = nil
@@ -118,8 +131,7 @@ private struct PublishMenu: Encodable { let id: UUID; let capturedAt: Date }
 
     func openCamera() async {
         guard profile != nil else {
-            message = signedIn ? "Set up your truck before publishing a menu." : "Sign in to publish a menu."
-            showSettings = signedIn
+            message = setupMessage(action: "publish a menu")
             return
         }
         guard UIImagePickerController.isSourceTypeAvailable(.camera),
@@ -174,13 +186,23 @@ private struct PublishMenu: Encodable { let id: UUID; let capturedAt: Date }
 
     private func apply(_ result: OperatorView) {
         profile = result.profile
+        registration = result.registration
         sharing = result.session
         if let session = result.session { scheduleExpiry(session) }
         refreshWidget()
     }
 
     private func refreshWidget() {
-        WidgetStatus(name: profile?.settings.name ?? "Rolling Local", expiresAt: sharing?.expiresAt).save()
+        WidgetStatus(name: registration?.name ?? "Rolling Local", expiresAt: sharing?.expiresAt).save()
+    }
+
+    private func setupMessage(action: String) -> String {
+        guard signedIn else { return "Sign in to \(action)." }
+        if registration?.status == .approved {
+            showSettings = true
+            return "Set up your operating hours and area first."
+        }
+        return "Your truck needs approval before you can \(action)."
     }
 
     private func operation(_ work: () async throws -> Void) async {

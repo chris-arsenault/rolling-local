@@ -62,6 +62,8 @@ jobs:
   ci:
     needs: [android, ios]
     uses: chris-arsenault/ahara/.github/workflows/ci.yml@main
+    with:
+      terraform_variables: '{"admin_subject":${{ toJSON(vars.ROLLING_LOCAL_ADMIN_SUBJECT) }}}'
     secrets: inherit
 
   smoke:
@@ -85,8 +87,20 @@ jobs:
             all(.trucks[]; (.active and has("location")) or ((.active | not) and (has("location") | not)))'
           curl "${curl_opts[@]}" "$site/" | grep -F 'Rolling Local'
           curl "${curl_opts[@]}" "$site/config.js" | grep -F "$api"
-          code="$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' "$api/operator")"
-          case "$code" in
-            401|403) ;;
-            *) printf 'Anonymous operator request returned %s\n' "$code" >&2; exit 1 ;;
-          esac
+          for path in about register admin; do
+            curl "${curl_opts[@]}" "$site/$path" | grep -F 'Rolling Local'
+          done
+          curl "${curl_opts[@]}" "$api/public/config" | jq -e --arg audience "$api" '
+            .issuer == "https://auth.ahara.io/" and .audience == $audience and
+            all((.connection, .webClientId, .iosClientId, .androidClientId); type == "string" and length > 0)'
+          curl "${curl_opts[@]}" --dump-header - --output /dev/null --request OPTIONS \
+            --header "Origin: $site" --header 'Access-Control-Request-Method: POST' \
+            --header 'Access-Control-Request-Headers: authorization, content-type' \
+            "$api/operator/registration" | grep -iF "access-control-allow-origin: $site"
+          for path in operator admin/trucks; do
+            code="$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' "$api/$path")"
+            case "$code" in
+              401|403) ;;
+              *) printf 'Anonymous /%s returned %s\n' "$path" "$code" >&2; exit 1 ;;
+            esac
+          done

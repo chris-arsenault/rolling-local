@@ -1,4 +1,4 @@
-use crate::domain::{Profile, Session};
+use crate::domain::{Profile, Session, Truck};
 use async_trait::async_trait;
 use aws_sdk_dynamodb::{
     Client,
@@ -43,24 +43,25 @@ impl StoreError {
 
 #[async_trait]
 pub trait Store: Send + Sync {
-    async fn profile(&self, owner: Uuid) -> Result<Option<Record<Profile>>, StoreError>;
-    async fn session(&self, owner: Uuid) -> Result<Option<Record<Session>>, StoreError>;
-    async fn put_profile(
+    async fn truck(&self, id: Uuid) -> Result<Option<Record<Truck>>, StoreError>;
+    async fn owned_truck(&self, subject: &str) -> Result<Option<Record<Truck>>, StoreError>;
+    async fn session(&self, truck: Uuid) -> Result<Option<Record<Session>>, StoreError>;
+    async fn put_truck(
         &self,
-        owner: Uuid,
         previous: Option<Uuid>,
-        profile: Record<Profile>,
+        truck: Record<Truck>,
+        link_owner: bool,
     ) -> Result<(), StoreError>;
     async fn put_session(
         &self,
-        owner: Uuid,
-        profile_version: Uuid,
+        truck: Uuid,
+        truck_version: Uuid,
         previous: Option<Uuid>,
         session: Record<Session>,
         start_command: bool,
     ) -> Result<(), StoreError>;
-    async fn stop(&self, owner: Uuid, id: Uuid) -> Result<(), StoreError>;
-    async fn directory(&self) -> Result<Vec<(Profile, Option<Session>)>, StoreError>;
+    async fn stop(&self, truck: Uuid, id: Uuid) -> Result<(), StoreError>;
+    async fn directory(&self) -> Result<Vec<(Record<Truck>, Option<Session>)>, StoreError>;
 }
 
 pub struct DynamoStore {
@@ -68,8 +69,8 @@ pub struct DynamoStore {
     table: String,
 }
 
-fn key(prefix: &str, owner: Uuid) -> AttributeValue {
-    AttributeValue::S(format!("{prefix}#{owner}"))
+fn key(prefix: &str, id: impl std::fmt::Display) -> AttributeValue {
+    AttributeValue::S(format!("{prefix}#{id}"))
 }
 
 fn item<T: Serialize>(key: AttributeValue, record: &Record<T>) -> Result<Attributes, StoreError> {
@@ -115,6 +116,23 @@ fn revision(previous: Option<Uuid>) -> (&'static str, Option<Attributes>) {
     }
 }
 
+fn transaction_error(error: Option<&TransactWriteItemsError>, operation: &str) -> StoreError {
+    if matches!(
+        error,
+        Some(TransactWriteItemsError::TransactionCanceledException(e)) if
+            e.cancellation_reasons().iter().any(|reason| {
+                matches!(
+                    reason.code(),
+                    Some("ConditionalCheckFailed" | "TransactionConflict")
+                )
+            })
+    ) {
+        StoreError::Conflict
+    } else {
+        StoreError::unavailable(operation)
+    }
+}
+
 impl DynamoStore {
     pub fn new(client: Client, table: String) -> Self {
         Self { client, table }
@@ -136,44 +154,82 @@ impl DynamoStore {
         result.item().map(decode).transpose()
     }
 
-    fn condition_profile(
-        &self,
-        owner: Uuid,
-        version: Uuid,
-    ) -> Result<TransactWriteItem, StoreError> {
+    fn condition_truck(&self, truck: Uuid, version: Uuid) -> Result<TransactWriteItem, StoreError> {
         let (condition, values) = revision(Some(version));
         let check = ConditionCheck::builder()
             .table_name(&self.table)
-            .key("id", key("p", owner))
+            .key("id", key("truck", truck))
             .condition_expression(condition)
             .set_expression_attribute_values(values)
             .build()
-            .map_err(|_| StoreError::unavailable("profile_condition"))?;
+            .map_err(|_| StoreError::unavailable("truck_condition"))?;
         Ok(TransactWriteItem::builder().condition_check(check).build())
     }
 }
 
 #[async_trait]
 impl Store for DynamoStore {
-    async fn profile(&self, owner: Uuid) -> Result<Option<Record<Profile>>, StoreError> {
-        self.get(key("p", owner)).await
+    async fn truck(&self, id: Uuid) -> Result<Option<Record<Truck>>, StoreError> {
+        self.get(key("truck", id)).await
     }
 
-    async fn session(&self, owner: Uuid) -> Result<Option<Record<Session>>, StoreError> {
-        self.get(key("s", owner)).await
+    async fn owned_truck(&self, subject: &str) -> Result<Option<Record<Truck>>, StoreError> {
+        let Some(binding) = self.get::<Uuid>(key("operator", subject)).await? else {
+            return Ok(None);
+        };
+        self.truck(binding.value)
+            .await?
+            .filter(|record| record.value.operator_subject.as_deref() == Some(subject))
+            .map(Some)
+            .ok_or_else(|| StoreError::unavailable("operator_binding"))
     }
 
-    async fn put_profile(
+    async fn session(&self, truck: Uuid) -> Result<Option<Record<Session>>, StoreError> {
+        self.get(key("live", truck)).await
+    }
+
+    async fn put_truck(
         &self,
-        owner: Uuid,
         previous: Option<Uuid>,
-        profile: Record<Profile>,
+        truck: Record<Truck>,
+        link_owner: bool,
     ) -> Result<(), StoreError> {
         let (condition, values) = revision(previous);
+        let data = item(key("truck", truck.value.id), &truck)?;
+        if link_owner {
+            let subject = truck
+                .value
+                .operator_subject
+                .as_deref()
+                .ok_or_else(|| StoreError::unavailable("owner_subject"))?;
+            let binding = item(key("operator", subject), &Record::new(truck.value.id))?;
+            let truck_put = Put::builder()
+                .table_name(&self.table)
+                .set_item(Some(data))
+                .condition_expression(condition)
+                .set_expression_attribute_values(values)
+                .build()
+                .map_err(|_| StoreError::unavailable("make_truck_write"))?;
+            let binding_put = Put::builder()
+                .table_name(&self.table)
+                .set_item(Some(binding))
+                .condition_expression("attribute_not_exists(id)")
+                .build()
+                .map_err(|_| StoreError::unavailable("make_binding_write"))?;
+            return self
+                .client
+                .transact_write_items()
+                .transact_items(TransactWriteItem::builder().put(truck_put).build())
+                .transact_items(TransactWriteItem::builder().put(binding_put).build())
+                .send()
+                .await
+                .map(|_| ())
+                .map_err(|error| transaction_error(error.as_service_error(), "bind_operator"));
+        }
         self.client
             .put_item()
             .table_name(&self.table)
-            .set_item(Some(item(key("p", owner), &profile)?))
+            .set_item(Some(data))
             .condition_expression(condition)
             .set_expression_attribute_values(values)
             .send()
@@ -185,7 +241,7 @@ impl Store for DynamoStore {
                 {
                     StoreError::Conflict
                 } else {
-                    StoreError::unavailable("put_profile")
+                    StoreError::unavailable("put_truck")
                 }
             })?;
         Ok(())
@@ -193,13 +249,13 @@ impl Store for DynamoStore {
 
     async fn put_session(
         &self,
-        owner: Uuid,
-        profile_version: Uuid,
+        truck: Uuid,
+        truck_version: Uuid,
         previous: Option<Uuid>,
         session: Record<Session>,
         start_command: bool,
     ) -> Result<(), StoreError> {
-        let mut data = item(key("s", owner), &session)?;
+        let mut data = item(key("live", truck), &session)?;
         data.insert(
             "session_id".into(),
             AttributeValue::S(session.value.id.to_string()),
@@ -219,7 +275,7 @@ impl Store for DynamoStore {
         let mut write = self
             .client
             .transact_write_items()
-            .transact_items(self.condition_profile(owner, profile_version)?)
+            .transact_items(self.condition_truck(truck, truck_version)?)
             .transact_items(TransactWriteItem::builder().put(put).build());
         if start_command {
             // A retried start must stay retired after an explicit stop.
@@ -228,7 +284,7 @@ impl Store for DynamoStore {
                 .condition_expression("attribute_not_exists(id)")
                 .item(
                     "id",
-                    AttributeValue::S(format!("start#{owner}#{}", session.value.id)),
+                    AttributeValue::S(format!("start#{truck}#{}", session.value.id)),
                 )
                 .item(
                     "expires",
@@ -238,32 +294,19 @@ impl Store for DynamoStore {
                 .map_err(|_| StoreError::unavailable("make_start_guard"))?;
             write = write.transact_items(TransactWriteItem::builder().put(guard).build());
         }
-        write.send().await.map_err(|error| {
-            if matches!(
-                error.as_service_error(),
-                Some(TransactWriteItemsError::TransactionCanceledException(e)) if {
-                    e.cancellation_reasons().iter().any(|reason| {
-                        matches!(
-                            reason.code(),
-                            Some("ConditionalCheckFailed" | "TransactionConflict")
-                        )
-                    })
-                }
-            ) {
-                StoreError::Conflict
-            } else {
-                StoreError::unavailable("put_session")
-            }
-        })?;
+        write
+            .send()
+            .await
+            .map_err(|error| transaction_error(error.as_service_error(), "put_session"))?;
         Ok(())
     }
 
-    async fn stop(&self, owner: Uuid, id: Uuid) -> Result<(), StoreError> {
+    async fn stop(&self, truck: Uuid, id: Uuid) -> Result<(), StoreError> {
         let delete_result = self
             .client
             .delete_item()
             .table_name(&self.table)
-            .key("id", key("s", owner))
+            .key("id", key("live", truck))
             .condition_expression("session_id = :session")
             .expression_attribute_values(":session", AttributeValue::S(id.to_string()))
             .send()
@@ -281,8 +324,9 @@ impl Store for DynamoStore {
         }
     }
 
-    async fn directory(&self) -> Result<Vec<(Profile, Option<Session>)>, StoreError> {
-        let mut profiles = BTreeMap::new();
+    async fn directory(&self) -> Result<Vec<(Record<Truck>, Option<Session>)>, StoreError> {
+        let mut trucks = BTreeMap::new();
+        let mut legacy = BTreeMap::new();
         let mut sessions = HashMap::new();
         let mut cursor = None;
         loop {
@@ -296,13 +340,23 @@ impl Store for DynamoStore {
                 .await
                 .map_err(|_| StoreError::unavailable("public_directory"))?;
             for item in page.items() {
-                if let Some((kind, owner)) = text(item, "id")?.split_once('#') {
+                if let Some((kind, id)) = text(item, "id")?.split_once('#') {
                     match kind {
                         "p" => {
-                            profiles.insert(owner.to_owned(), decode::<Profile>(item)?.value);
+                            let profile = decode::<Profile>(item)?;
+                            legacy.insert(
+                                profile.value.id.to_string(),
+                                Record {
+                                    version: profile.version,
+                                    value: Truck::from_legacy(profile.value),
+                                },
+                            );
                         }
-                        "s" => {
-                            sessions.insert(owner.to_owned(), decode::<Session>(item)?.value);
+                        "truck" => {
+                            trucks.insert(id.to_owned(), decode::<Truck>(item)?);
+                        }
+                        "live" => {
+                            sessions.insert(id.to_owned(), decode::<Session>(item)?.value);
                         }
                         _ => {}
                     }
@@ -316,7 +370,8 @@ impl Store for DynamoStore {
                 break;
             }
         }
-        Ok(profiles
+        legacy.extend(trucks);
+        Ok(legacy
             .into_iter()
             .map(|(id, profile)| (profile, sessions.remove(&id)))
             .collect())

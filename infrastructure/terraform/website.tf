@@ -16,6 +16,18 @@ module "website" {
   }
 }
 
+# The app has a small set of direct-entry pages. Serve its shell at those exact
+# keys while keeping missing menu photos and other missing objects as errors.
+resource "aws_s3_object" "page" {
+  for_each      = toset(["about", "register", "admin"])
+  bucket        = module.website.bucket_name
+  key           = each.key
+  source        = "${path.module}/../../frontend/dist/index.html"
+  source_hash   = filemd5("${path.module}/../../frontend/dist/index.html")
+  content_type  = "text/html; charset=utf-8"
+  cache_control = "no-cache"
+}
+
 resource "aws_s3_bucket_policy" "menus" {
   bucket = aws_s3_bucket.menus.id
   policy = jsonencode({

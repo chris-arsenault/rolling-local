@@ -24,9 +24,15 @@ async fn main() -> Result<(), Error> {
         env::var("PUBLIC_SITE")?,
     );
     let identity = OperatorConfig {
-        cognito_domain: env::var("COGNITO_DOMAIN")?,
-        client_id: env::var("COGNITO_CLIENT_ID")?,
+        issuer: env::var("AUTH0_ISSUER")?,
+        audience: env::var("AUTH0_AUDIENCE")?,
+        connection: env::var("AUTH0_CONNECTION")?,
+        web_client_id: env::var("AUTH0_WEB_CLIENT_ID")?,
+        ios_client_id: env::var("AUTH0_IOS_CLIENT_ID")?,
+        android_client_id: env::var("AUTH0_ANDROID_CLIENT_ID")?,
         redirect_uri: env::var("MOBILE_REDIRECT_URI")?,
+        public_site: env::var("PUBLIC_SITE")?,
+        admin_subject: env::var("ADMIN_SUBJECT").ok(),
     };
     let surface = match env::var("SURFACE")?.as_str() {
         "public" => Surface::Public,

@@ -22,6 +22,10 @@ declare global {
 const defaultApi = "https://api.rolling-local.ahara.io";
 const searchKey = (text: string) => text.normalize("NFD").replaceAll(/\p{M}/gu, "").toLowerCase();
 
+export function apiUrl(path: string): URL {
+  return new URL(path, window.__APP_CONFIG__?.apiBaseUrl ?? import.meta.env.VITE_API_ORIGIN ?? defaultApi);
+}
+
 export function eligible(truck: Truck, now: number): Location | undefined {
   return truck.active && truck.location && Date.parse(truck.location.expiresAt) > now
     ? truck.location
@@ -43,8 +47,7 @@ export function offline(truck: Truck): Truck {
 }
 
 export async function loadDirectory(signal: AbortSignal): Promise<Truck[]> {
-  const endpoint = window.__APP_CONFIG__?.apiBaseUrl ?? import.meta.env.VITE_API_ORIGIN ?? defaultApi;
-  const response = await fetch(new URL("/public/trucks", endpoint), {
+  const response = await fetch(apiUrl("/public/trucks"), {
     signal,
     cache: "no-store",
     credentials: "omit",

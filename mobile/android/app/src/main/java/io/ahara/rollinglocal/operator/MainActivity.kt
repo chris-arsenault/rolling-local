@@ -110,10 +110,15 @@ class MainActivity : ComponentActivity() {
                 Scaffold(modifier = Modifier.safeDrawingPadding()) { padding ->
                     OperatorHome(screen, Modifier.padding(padding), ::signIn, ::toggle, ::openCamera,
                         { editSettings = true }, { model.scope.launch { model.signOut() } },
+                        { model.scope.launch { model.refresh() } },
                         { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it))) })
                 }
                 if (editSettings) {
-                    SettingsDialog(screen.state.profile?.settings ?: Settings(), screen,
+                    val registration = screen.state.registration
+                    val initial = screen.state.profile?.settings ?: Settings(
+                        name = registration?.name.orEmpty(), cuisine = registration?.cuisine.orEmpty(),
+                    )
+                    SettingsDialog(initial, screen,
                         dismiss = { editSettings = false },
                         save = { model.scope.launch { if (model.save(it)) editSettings = false } })
                 }
@@ -162,11 +167,16 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun needsProfile(action: String): Boolean {
-        if (model.ui.value.state.profile != null) return false
-        if (model.ui.value.signedIn) {
-            editSettings = true
-            model.message("Set up your truck to $action.")
-        } else model.message("Sign in to $action.")
+        val screen = model.ui.value
+        if (screen.state.profile != null) return false
+        when {
+            !screen.signedIn -> model.message("Sign in to $action.")
+            screen.state.registration?.status == TruckStatus.APPROVED -> {
+                editSettings = true
+                model.message("Set up your operating hours and area first.")
+            }
+            else -> model.message("Your truck needs approval before you can $action.")
+        }
         return true
     }
 
@@ -243,21 +253,36 @@ private fun OperatorHome(
     camera: () -> Unit,
     settings: () -> Unit,
     signOut: () -> Unit,
+    refresh: () -> Unit,
     showMenu: (String) -> Unit,
 ) {
     val profile = screen.state.profile
+    val registration = screen.state.registration
     val session = screen.state.session?.takeUnless { it.expired() }
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        Text(profile?.settings?.name ?: "Rolling Local", style = MaterialTheme.typography.headlineLarge)
+        Text(registration?.name ?: "Rolling Local", style = MaterialTheme.typography.headlineLarge)
         when {
             !screen.signedIn -> {
                 Text("Share your truck’s location and current menu with nearby customers.")
                 Button(signIn, enabled = !screen.busy) { Text("Sign in with Ahara") }
             }
             profile == null -> {
-                Text("Set your truck name, cuisine, hours and operating area to appear in the directory.")
-                Button(settings) { Text("Set up truck") }
+                when (registration?.status) {
+                    TruckStatus.APPROVED -> {
+                        Text("Set your weekly hours and operating area before sharing from the app.")
+                        Button(settings) { Text("Set up operating hours and area") }
+                    }
+                    TruckStatus.PENDING -> {
+                        Text("Your truck is awaiting review.")
+                        OutlinedButton(refresh, enabled = !screen.busy) { Text("Check status") }
+                    }
+                    TruckStatus.REJECTED -> Text("This registration was declined.")
+                    null -> {
+                        Text("Use your Rolling Local registration link to apply for a truck listing.")
+                        OutlinedButton(refresh, enabled = !screen.busy) { Text("Check status") }
+                    }
+                }
                 TextButton(signOut) { Text("Sign out") }
             }
             else -> {

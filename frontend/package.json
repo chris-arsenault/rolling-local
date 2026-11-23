@@ -11,6 +11,7 @@
     "build": "tsc --noEmit && vite build"
   },
   "dependencies": {
+    "@auth0/auth0-spa-js": "^2.30.0",
     "maplibre-gl": "^5.7.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"

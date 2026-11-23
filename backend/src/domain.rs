@@ -75,6 +75,13 @@ pub struct Hours {
 pub struct Settings {
     pub name: String,
     pub cuisine: String,
+    #[serde(flatten)]
+    pub policy: OperatingPolicy,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OperatingPolicy {
     pub timezone: Tz,
     pub hours: Hours,
     pub area: Circle,
@@ -125,22 +132,24 @@ impl Hours {
 
 impl Settings {
     pub fn valid(&self, now: DateTime<Utc>) -> bool {
-        let text_valid = |value: &str| !value.trim().is_empty() && value.chars().count() <= 100;
-        text_valid(&self.name)
-            && text_valid(&self.cuisine)
-            && self.hours.valid()
+        valid_listing_field(&self.name)
+            && valid_listing_field(&self.cuisine)
+            && self.policy.valid(now)
+    }
+}
+
+fn valid_listing_field(value: &str) -> bool {
+    !value.trim().is_empty() && value.trim().chars().count() <= 100
+}
+
+impl OperatingPolicy {
+    fn valid(&self, now: DateTime<Utc>) -> bool {
+        self.hours.valid()
             && self.area.valid()
             && self
                 .event
                 .as_ref()
                 .is_none_or(|event| event.area.valid() && event.expires_at > now)
-    }
-
-    pub fn same_sharing_policy(&self, other: &Self) -> bool {
-        self.timezone == other.timezone
-            && self.hours == other.hours
-            && self.area == other.area
-            && self.event == other.event
     }
 
     fn effective_area(&self, now: DateTime<Utc>) -> Circle {
@@ -166,6 +175,112 @@ pub struct Profile {
     pub policy_id: Uuid,
     pub settings: Settings,
     pub menu: Option<Menu>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Listing {
+    pub name: String,
+    pub cuisine: String,
+}
+
+impl Listing {
+    pub fn normalize(mut self) -> Option<Self> {
+        if !valid_listing_field(&self.name) || !valid_listing_field(&self.cuisine) {
+            return None;
+        }
+        self.name = self.name.trim().into();
+        self.cuisine = self.cuisine.trim().into();
+        Some(self)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TruckStatus {
+    Pending,
+    Approved,
+    Rejected,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Review {
+    pub by: String,
+    pub at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Truck {
+    pub id: Uuid,
+    #[serde(flatten)]
+    pub listing: Listing,
+    pub status: TruckStatus,
+    pub operator_subject: Option<String>,
+    pub review: Option<Review>,
+    pub policy_id: Uuid,
+    pub policy: Option<OperatingPolicy>,
+    pub menu: Option<Menu>,
+}
+
+impl Truck {
+    pub fn new(listing: Listing, operator_subject: Option<String>) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            listing,
+            status: TruckStatus::Pending,
+            operator_subject,
+            review: None,
+            policy_id: Uuid::new_v4(),
+            policy: None,
+            menu: None,
+        }
+    }
+
+    pub fn from_legacy(profile: Profile) -> Self {
+        Self {
+            id: profile.id,
+            listing: Listing {
+                name: profile.settings.name,
+                cuisine: profile.settings.cuisine,
+            },
+            status: TruckStatus::Approved,
+            operator_subject: None,
+            review: None,
+            policy_id: profile.policy_id,
+            policy: Some(profile.settings.policy),
+            menu: profile.menu,
+        }
+    }
+
+    pub fn operator_profile(&self) -> Option<Profile> {
+        if self.status != TruckStatus::Approved || self.operator_subject.is_none() {
+            return None;
+        }
+        Some(Profile {
+            id: self.id,
+            policy_id: self.policy_id,
+            settings: Settings {
+                name: self.listing.name.clone(),
+                cuisine: self.listing.cuisine.clone(),
+                policy: self.policy.clone()?,
+            },
+            menu: self.menu.clone(),
+        })
+    }
+
+    pub fn update_settings(&mut self, mut settings: Settings) {
+        settings.policy.hours.weekdays.sort_unstable();
+        settings.policy.hours.weekdays.dedup();
+        if self.policy.as_ref() != Some(&settings.policy) {
+            self.policy_id = Uuid::new_v4();
+        }
+        self.listing = Listing {
+            name: settings.name.trim().into(),
+            cuisine: settings.cuisine.trim().into(),
+        };
+        self.policy = Some(settings.policy);
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -234,12 +349,12 @@ impl Session {
         fix: Fix,
         now: DateTime<Utc>,
     ) -> Result<Self, Rejection> {
-        let settings = &profile.settings;
-        let closes_at = settings
+        let policy = &profile.settings.policy;
+        let closes_at = policy
             .hours
-            .closes_at(settings.timezone, now)
+            .closes_at(policy.timezone, now)
             .ok_or(Rejection::Closed)?;
-        let location = Self::location(settings, closes_at, fix, now)?;
+        let location = Self::location(policy, closes_at, fix, now)?;
         Ok(Self {
             id,
             policy_id: profile.policy_id,
@@ -265,7 +380,7 @@ impl Session {
         if fix.recorded_at <= self.location.recorded_at {
             return Ok(false);
         }
-        let next = Self::location(&profile.settings, self.closes_at, fix, now)?;
+        let next = Self::location(&profile.settings.policy, self.closes_at, fix, now)?;
         if now - self.published_at < PUBLICATION_INTERVAL {
             return Ok(false);
         }
@@ -275,12 +390,12 @@ impl Session {
     }
 
     fn location(
-        settings: &Settings,
+        policy: &OperatingPolicy,
         closes_at: DateTime<Utc>,
         fix: Fix,
         now: DateTime<Utc>,
     ) -> Result<PublicLocation, Rejection> {
-        if now >= closes_at || settings.hours.closes_at(settings.timezone, now).is_none() {
+        if now >= closes_at || policy.hours.closes_at(policy.timezone, now).is_none() {
             return Err(Rejection::Closed);
         }
         if !fix.fresh(now) {
@@ -289,13 +404,13 @@ impl Session {
         if !fix.valid() {
             return Err(Rejection::InvalidFix);
         }
-        if !settings.effective_area(now).contains(fix) {
+        if !policy.effective_area(now).contains(fix) {
             return Err(Rejection::Outside);
         }
         Ok(PublicLocation {
             position: fix.position.rounded(),
             recorded_at: fix.recorded_at,
-            expires_at: settings.location_expires_at(fix, now).min(closes_at),
+            expires_at: policy.location_expires_at(fix, now).min(closes_at),
         })
     }
 }
@@ -333,17 +448,23 @@ pub struct PublicTruck {
 }
 
 impl PublicTruck {
-    pub fn from_profile(profile: Profile, session: Option<&Session>, now: DateTime<Utc>) -> Self {
-        let location = session
-            .filter(|session| session.active(&profile, now))
-            .map(|s| s.location.clone());
-        Self {
-            id: profile.id,
-            name: profile.settings.name,
-            cuisine: profile.settings.cuisine,
-            menu: profile.menu,
+    pub fn from_truck(truck: Truck, session: Option<&Session>, now: DateTime<Utc>) -> Option<Self> {
+        if truck.status != TruckStatus::Approved {
+            return None;
+        }
+        let location = session.and_then(|session| {
+            let profile = truck.operator_profile()?;
+            session
+                .active(&profile, now)
+                .then(|| session.location.clone())
+        });
+        Some(Self {
+            id: truck.id,
+            name: truck.listing.name,
+            cuisine: truck.listing.cuisine,
+            menu: truck.menu,
             active: location.is_some(),
             location,
-        }
+        })
     }
 }

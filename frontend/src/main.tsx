@@ -6,6 +6,8 @@ import "./style.css";
 const time = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 const pollInterval = 20_000;
 const TruckMap = lazy(async () => ({ default: (await import("./TruckMap")).TruckMap }));
+const About = lazy(() => import("./About"));
+const OperatorAccess = lazy(() => import("./OperatorAccess"));
 
 function useDirectory() {
   const [trucks, setTrucks] = useState<Truck[]>([]);
@@ -117,6 +119,15 @@ function App() {
           <span className="screen-reader">Search trucks or cuisine</span>
           <input type="search" value={query} onChange={(event) => setQuery(event.currentTarget.value)} placeholder="Search trucks or cuisine" />
         </label>
+        <div className="header-links">
+          <span>An <a href="https://ahara.io">Ahara</a> product</span>
+          <details className="navigation-menu">
+            <summary>Menu</summary>
+            <nav aria-label="Site">
+              <a href="/about">About</a>
+            </nav>
+          </details>
+        </div>
       </header>
       <nav className="mobile-nav" aria-label="Discovery views">
         <button type="button" aria-pressed={mode === "map"} onClick={() => setMode("map")}>Map</button>
@@ -163,4 +174,9 @@ function App() {
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing application root");
-createRoot(root).render(<App />);
+const path = window.location.pathname.replace(/\/$/, "");
+const page = path === "/about" ? <About />
+  : path === "/register" ? <OperatorAccess route="/register" />
+  : path === "/admin" ? <OperatorAccess route="/admin" />
+  : <App />;
+createRoot(root).render(<Suspense fallback={<p className="page-loading" role="status">Loading…</p>}>{page}</Suspense>);

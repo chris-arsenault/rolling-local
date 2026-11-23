@@ -1,0 +1,73 @@
+arconis 1
+title "Rolling Local | Truck registration and administration"
+style panel fill #f8faf4 line #cdd9cb line-width 2 text-color #263b2e title header
+style identity fill #f0ecff line #a593d3 line-width 2 text-color #3d2e63
+style operator fill #eaf2fc line #8baaca line-width 2 text-color #224462
+style pending fill #fff3d7 line #dcbf78 line-width 2 text-color #65430c
+style approved fill #e2f1e4 line #8ab196 line-width 2 text-color #235038
+style rejected fill #fae8e5 line #d5a098 line-width 2 text-color #753629
+style field fill #ffffff line #ccd8cc line-width 2 text-color #243c2d
+style primary fill #1c6347 line #1c6347 line-width 1 text-color #ffffff bold
+style action fill #e2f1e4 line #9cbdaa line-width 2 text-color #235038 bold
+text registration_title "TRUCK REGISTRATION AND REVIEW" jump text-size 50 text-color #203b2c bold at 110,60 size 2350,75
+text registration_summary "Direct operator link · shared Auth0 · Rolling Local approval · approved-only discovery" text-size 26 text-color #456153 at 115,147 size 2280,50
+frame registration_flow "REGISTRATION AND LISTING STATE" panel at 90,245 size 2460,788 {
+  node start_registration "Rolling Local /register" / "Open a shared URL or scan a QR code" operator text-size 26 link "https://sulion.services.ahara.io/?plan=4884739e-45df-4e74-83f4-b533b98ee53c&phase=9f1ead1f-d5e6-4727-8147-e6129e13251d" at 145,340 size 455,126
+  node shared_auth0 "Ahara shared Auth0" / "Sign up or sign in" identity text-size 26 link "https://sulion.services.ahara.io/?plan=4884739e-45df-4e74-83f4-b533b98ee53c&phase=14704217-cea1-440c-bb70-1570991a970e" at 720,340 size 455,126
+  node submit_truck "Truck registration form" / "Submit name and cuisine" operator text-size 26 link "https://sulion.services.ahara.io/?plan=4884739e-45df-4e74-83f4-b533b98ee53c&phase=9f1ead1f-d5e6-4727-8147-e6129e13251d" at 1295,340 size 455,126
+  node pending_truck "Pending" / "Visible to the applicant and admin" pending text-size 26 link "https://sulion.services.ahara.io/?plan=4884739e-45df-4e74-83f4-b533b98ee53c&phase=ea78221f-a03b-46c1-96d7-b90c526e254b" at 1870,340 size 550,126
+  node owner_review "Rolling Local admin" / "Product owner reviews submissions" operator text-size 26 link "https://sulion.services.ahara.io/?plan=4884739e-45df-4e74-83f4-b533b98ee53c&phase=4d1db30d-5a00-43a0-96b2-9f944bfa791e" at 1870,550 size 550,135
+  node manual_truck "Manual entry" / "Owner enters a listing and chooses publication" operator text-size 26 link "https://sulion.services.ahara.io/?plan=4884739e-45df-4e74-83f4-b533b98ee53c&phase=4d1db30d-5a00-43a0-96b2-9f944bfa791e" at 580,790 size 545,145
+  node approved_truck "Approved" / "Public listing · live map requires a fresh session" approved text-size 26 link "https://sulion.services.ahara.io/?plan=4884739e-45df-4e74-83f4-b533b98ee53c&phase=ea78221f-a03b-46c1-96d7-b90c526e254b" at 1295,790 size 455,145
+  node rejected_truck "Rejected" / "Private status for applicant and admin" rejected text-size 26 link "https://sulion.services.ahara.io/?plan=4884739e-45df-4e74-83f4-b533b98ee53c&phase=ea78221f-a03b-46c1-96d7-b90c526e254b" at 1870,790 size 550,145
+}
+start_registration.right -> shared_auth0.left
+shared_auth0.right -> submit_truck.left
+submit_truck.right -> pending_truck.left
+pending_truck.bottom -> owner_review.top "review"
+owner_review.bottom -> approved_truck.top "accept" via 2145,730 1522,730
+owner_review.bottom -> rejected_truck.top "reject"
+manual_truck.right -> approved_truck.left "publish"
+text screens "REGISTRATION AND ADMIN SCREENS" jump text-size 44 text-color #203b2c bold at 110,1100 size 2300,65
+frame public_form "01  ·  DIRECT REGISTRATION" panel link "https://sulion.services.ahara.io/?plan=4884739e-45df-4e74-83f4-b533b98ee53c&phase=9f1ead1f-d5e6-4727-8147-e6129e13251d" at 90,1210 size 760,940 {
+  text register_heading "Register a truck" text-size 44 text-color #203b2c bold at 140,1290 size 650,58
+  text register_account "Signed in with Auth0" text-size 25 text-color #456153 at 140,1370 size 650,40
+  text register_name_label "Truck name" text-size 24 bold text-color #203b2c at 140,1455 size 650,40
+  node register_name "Copper Canyon Tacos" field text-size 27 align left padding 18 at 140,1504 size 660,76
+  text register_cuisine_label "Cuisine" text-size 24 bold text-color #203b2c at 140,1621 size 650,40
+  node register_cuisine "Mexican · Street food" field text-size 27 align left padding 18 at 140,1670 size 660,76
+  node submit_button "Submit registration" primary text-size 26 at 140,1820 size 660,84
+  text register_expectation "You can check your registration status after submitting." text-size 23 text-color #456153 at 140,1934 size 660,83
+}
+frame operator_status "02  ·  OPERATOR STATUS" panel link "https://sulion.services.ahara.io/?plan=4884739e-45df-4e74-83f4-b533b98ee53c&phase=9f1ead1f-d5e6-4727-8147-e6129e13251d" at 940,1210 size 760,940 {
+  text status_heading "Copper Canyon Tacos" text-size 39 text-color #203b2c bold at 995,1290 size 660,60
+  node status_pending "Pending review" pending text-size 27 at 995,1390 size 660,82
+  text status_pending_detail "Your application is with the Rolling Local owner for review." text-size 25 text-color #456153 at 995,1497 size 655,100
+  text status_outcomes "AFTER REVIEW" text-size 23 text-color #456153 bold at 995,1625 size 660,38
+  node status_approved "Approved" / "Set up your operating hours and start sharing in the app." approved text-size 24 at 995,1680 size 660,130
+  node status_rejected "Rejected" / "Your truck stays private." rejected text-size 24 at 995,1850 size 660,130
+}
+frame admin_screen "03  ·  OWNER ADMINISTRATION" panel link "https://sulion.services.ahara.io/?plan=4884739e-45df-4e74-83f4-b533b98ee53c&phase=4d1db30d-5a00-43a0-96b2-9f944bfa791e" at 1790,1210 size 760,940 {
+  text admin_heading "Manage trucks" text-size 44 text-color #203b2c bold at 1840,1290 size 650,58
+  text admin_pending_count "1 pending review" text-size 23 text-color #456153 at 1840,1380 size 660,58
+  node admin_listing "Copper Canyon Tacos" / "Mexican · Pending review" pending text-size 25 at 1840,1465 size 660,112
+  node accept_button "Accept" primary text-size 25 at 1840,1608 size 317,60
+  node reject_button "Reject" rejected text-size 25 bold at 2183,1608 size 317,60
+  text manual_heading "Add a truck manually" text-size 31 text-color #203b2c bold at 1840,1732 size 660,52
+  node manual_name "Truck name" field text-size 22 align left padding 15 at 1840,1800 size 318,64
+  node manual_cuisine "Cuisine" field text-size 22 align left padding 15 at 2183,1800 size 317,64
+  node manual_publication "Publish as approved" action text-size 23 at 1840,1890 size 660,64
+  node manual_save "Add truck" primary text-size 26 at 1840,1995 size 660,70
+}
+frame about_page "04  ·  ABOUT FOR OPERATORS" panel link "https://sulion.services.ahara.io/?plan=4884739e-45df-4e74-83f4-b533b98ee53c&phase=9f1ead1f-d5e6-4727-8147-e6129e13251d" at 90,2270 size 2460,665 {
+  text about_brand "Rolling Local" text-size 32 text-color #203b2c bold at 145,2350 size 350,52
+  text about_discovery "Find food trucks" text-size 26 text-color #1c6347 at 2220,2350 size 265,52
+  text about_heading "Help customers find your food truck." text-size 50 text-color #203b2c bold at 145,2446 size 1100,74
+  text about_intro "Share where you’re serving and what’s on the menu." text-size 26 text-color #456153 at 145,2530 size 1040,52
+  node about_photo "Food truck at an outdoor market" approved text-size 24 at 1390,2430 size 1105,163
+  node about_location "Go live when you’re serving" / "Share an approximate location from your phone." field text-size 26 at 145,2642 size 740,118
+  node about_menu "Show what’s on the menu" / "Publish a timestamped menu photo." field text-size 26 at 950,2642 size 740,118
+  node about_listing "Stay discoverable between stops" / "Approved listings stay searchable while offline." field text-size 26 at 1755,2642 size 740,118
+  text about_review "A review comes before your truck appears in the public directory." text-size 25 text-color #456153 at 145,2805 size 2300,55
+}
+opening registration_title

@@ -64,9 +64,24 @@ struct HomeView: View {
                         Button("Sign out", role: .destructive) { Task { await model.signOut() } }
                     }
                 } else {
-                    Section {
-                        Text("Add your truck name, cuisine, weekly hours, and operating area to appear in the directory.")
-                        Button("Set up truck") { model.showSettings = true }
+                    Section("Truck registration") {
+                        if let registration = model.registration {
+                            LabeledContent("Truck", value: registration.name)
+                            LabeledContent("Status", value: registration.status.rawValue.capitalized)
+                        }
+                        switch model.registration?.status {
+                        case .approved:
+                            Text("Set your weekly hours and operating area before sharing from the app.")
+                            Button("Set up operating hours and area") { model.showSettings = true }
+                        case .pending:
+                            Text("Your truck is awaiting review.")
+                            Button("Check status") { Task { await model.refreshRegistration() } }.disabled(model.busy)
+                        case .rejected:
+                            Text("This registration was declined.")
+                        case nil:
+                            Text("Use your Rolling Local registration link to apply for a truck listing.")
+                            Button("Check status") { Task { await model.refreshRegistration() } }.disabled(model.busy)
+                        }
                         Button("Sign out", role: .destructive) { Task { await model.signOut() } }
                     }
                 }
@@ -74,10 +89,10 @@ struct HomeView: View {
                     Section { Text(message).accessibilityIdentifier("operator-status") }
                 }
             }
-            .navigationTitle(model.profile?.settings.name ?? "Rolling Local")
+            .navigationTitle(model.registration?.name ?? "Rolling Local")
         }
         .sheet(isPresented: $model.showSettings) {
-            SettingsForm(model: model, settings: model.profile?.settings ?? Settings())
+            SettingsForm(model: model, settings: model.editableSettings)
         }
         .fullScreenCover(isPresented: $model.showCamera) {
             MenuCamera { photo in
