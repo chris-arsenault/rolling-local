@@ -1,54 +1,54 @@
-.operator-page { max-width: 39rem; margin: auto; padding: 1.25rem 1rem 3rem; }
+.operator-page { max-width: 38rem; margin: auto; padding: 1.25rem 1rem 3rem; }
 .operator-page.admin-page { max-width: 65rem; }
-.operator-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--line); padding-bottom: 1rem; }
-.operator-page h1 { font-size: clamp(2rem, 5vw, 3rem); letter-spacing: -.06em; line-height: 1.05; }
-.operator-page h2 { margin: .65rem 0; letter-spacing: -.035em; }
+.operator-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 2px solid var(--ink); padding-bottom: 1rem; }
+.operator-page h1 { margin: 1.6rem 0 1rem; font-size: clamp(2rem, 5vw, 2.8rem); letter-spacing: -.03em; line-height: 1.05; }
+.operator-page h2 { margin: .65rem 0; letter-spacing: -.02em; }
 .operator-page p { line-height: 1.5; }
-.operator-card { background: var(--paper); border: 1px solid var(--line); border-radius: 1rem; padding: clamp(1rem, 4vw, 1.65rem); }
+.operator-card { background: var(--card); border: 2px solid var(--ink); border-radius: 1rem; padding: clamp(1rem, 4vw, 1.65rem); box-shadow: 4px 4px 0 var(--mustard); }
 .operator-card > :first-child { margin-top: 0; }
 .operator-page button {
   color: inherit;
-  background: #edf0e7;
-  border: 1px solid var(--line);
-  border-radius: .65rem;
+  background: var(--card);
+  border: 2px solid var(--ink);
+  border-radius: 999px;
   min-height: 2.75rem;
-  padding: .48rem .85rem;
-  font-weight: 700;
+  padding: .48rem 1.1rem;
+  font-weight: 800;
 }
-.operator-page button:hover:not(:disabled) { filter: brightness(.96); }
-.operator-page .primary-button { background: var(--green); color: white; border-color: var(--green); }
-.operator-page .reject-button { color: #872c22; background: #faeae6; border-color: #e7c4bb; }
-.operator-page button:disabled { cursor: default; opacity: .65; }
+.operator-page button:hover:not(:disabled) { background: var(--mustard); }
+.operator-page .primary-button { background: var(--tomato); color: white; }
+.operator-page .primary-button:hover:not(:disabled) { background: var(--tomato-dark); }
+.operator-page .reject-button { color: var(--danger); background: var(--danger-bg); }
+.operator-page button:disabled { cursor: default; opacity: .6; }
 .operator-form { display: grid; gap: .95rem; }
-.operator-form label { display: grid; gap: .35rem; font-weight: 650; min-width: 0; }
+.operator-form label { display: grid; gap: .35rem; font-weight: 700; min-width: 0; }
 .operator-form input:not([type="checkbox"]) {
   color: inherit;
-  padding: .7rem .72rem;
+  padding: .7rem .8rem;
   background: white;
-  border: 1px solid #afbeaf;
-  border-radius: .5rem;
+  border: 2px solid var(--ink);
+  border-radius: .6rem;
   min-width: 0;
   width: 100%;
 }
-.operator-form p { margin: 0; color: #435b4f; }
+.operator-form p { margin: 0; color: var(--ink-soft); }
 .operator-form label.checkbox { display: flex; align-items: start; font-weight: 500; gap: .6rem; }
 .operator-form input[type="checkbox"] { margin: .25rem 0 0; }
 .form-actions { display: flex; flex-wrap: wrap; gap: .55rem; }
 .operator-card details { margin-top: 1.25rem; border-top: 1px solid var(--line); padding-top: .8rem; overflow-wrap: anywhere; }
-.operator-card summary { cursor: pointer; font-weight: 650; }
-.operator-page .status[data-status="pending"] { background: #fff0cc; color: #65460e; }
-.operator-page .status[data-status="approved"] { background: #e1f0df; color: #235038; }
-.operator-page .status[data-status="rejected"] { background: #faeae6; color: #872c22; }
-.operator-page [role="alert"] { color: #872c22; }
+.operator-card summary { cursor: pointer; font-weight: 700; }
+.operator-page .status[data-status="pending"] { background: var(--warn-bg); color: #65460e; }
+.operator-page .status[data-status="approved"] { background: var(--live-bg); color: var(--live); }
+.operator-page .status[data-status="rejected"] { background: var(--danger-bg); color: var(--danger); }
+.operator-page [role="alert"] { color: var(--danger); font-weight: 700; }
 .admin-workspace { display: grid; gap: 1rem; align-items: start; }
 .admin-list { list-style: none; padding: 0; margin: 0; display: grid; gap: .45rem; }
-.admin-list button { width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; gap: .65rem; }
+.admin-list button { width: 100%; text-align: left; border-radius: .7rem; display: flex; justify-content: space-between; align-items: center; gap: .65rem; }
 .admin-list button strong { overflow-wrap: anywhere; }
-.admin-list button[aria-pressed="true"] { border-color: var(--green); background: #e4eedf; }
+.admin-list button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
 .truck-editor { display: grid; gap: 1rem; }
 .truck-editor h2, .truck-editor p { margin: 0; overflow-wrap: anywhere; }
 .truck-editor details form { margin-top: .9rem; }
-.muted { color: #435b4f; }
 
 @media (min-width: 760px) {
   .admin-workspace { grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); }

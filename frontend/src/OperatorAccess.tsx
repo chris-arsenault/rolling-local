@@ -123,7 +123,7 @@ export default function OperatorAccess({ route }: { route: OperatorRoute }) {
       {!login ? <p role="status">Loading sign-in…</p>
         : !client ? <button onClick={() => window.location.reload()}>Try again</button>
         : !signedIn ? <section className="operator-card">
-          <p>{admin ? "Sign in with the owner account to manage truck listings." : "Sign in with your Ahara account or create one to submit your truck for review."}</p>
+          <p>{admin ? "Sign in with the owner account to review registrations and manage truck listings." : "Sign in with your Ahara account, or create one, to put your truck in front of hungry customers. We review each registration before it goes public."}</p>
           <div className="form-actions">
             <button className="primary-button" disabled={working} onClick={() => void authenticate("signin")}>Sign in with Ahara</button>
             {!admin && <button disabled={working} onClick={() => void authenticate("signup")}>Create an account</button>}
