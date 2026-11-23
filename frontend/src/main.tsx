@@ -174,9 +174,23 @@ function App() {
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing application root");
-const path = window.location.pathname.replace(/\/$/, "");
-const page = path === "/about" ? <About />
-  : path === "/register" ? <OperatorAccess route="/register" />
-  : path === "/admin" ? <OperatorAccess route="/admin" />
-  : <App />;
-createRoot(root).render(<Suspense fallback={<p className="page-loading" role="status">Loading…</p>}>{page}</Suspense>);
+
+function Route() {
+  switch (window.location.pathname.replace(/\/+$/, "")) {
+    case "":
+      return <App />;
+    case "/about":
+      return <About />;
+    case "/register":
+      return <OperatorAccess route="/register" />;
+    case "/admin":
+      return <OperatorAccess route="/admin" />;
+    default:
+      return <main className="page-loading">
+        <h1>Page not found</h1>
+        <a href="/">Find food trucks</a>
+      </main>;
+  }
+}
+
+createRoot(root).render(<Suspense fallback={<p className="page-loading" role="status">Loading…</p>}><Route /></Suspense>);

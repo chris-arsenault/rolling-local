@@ -1,3 +1,20 @@
+resource "aws_ssm_parameter" "application" {
+  name = "/${local.prefix}/application"
+  type = "String"
+  value = jsonencode({
+    truckTable      = aws_dynamodb_table.trucks.name
+    menuBucket      = aws_s3_bucket.menus.id
+    publicSite      = local.site_origin
+    issuer          = local.auth0_issuer
+    audience        = auth0_resource_server.operator.identifier
+    connection      = local.auth0_connection
+    webClientId     = auth0_client.operator["web"].client_id
+    iosClientId     = auth0_client.operator["ios"].client_id
+    androidClientId = auth0_client.operator["android"].client_id
+    redirectUri     = local.mobile_route
+  })
+}
+
 module "api" {
   source = "git::https://github.com/chris-arsenault/ahara-tf-patterns.git//modules/alb-api"
 
@@ -7,23 +24,17 @@ module "api" {
   vpc       = module.ctx.vpc
   alb       = module.ctx.alb
 
-  environment = {
-    TRUCK_TABLE             = aws_dynamodb_table.trucks.name
-    MENU_BUCKET             = aws_s3_bucket.menus.id
-    PUBLIC_SITE             = local.site_origin
-    AUTH0_ISSUER            = local.auth0_issuer
-    AUTH0_AUDIENCE          = auth0_resource_server.operator.identifier
-    AUTH0_CONNECTION        = local.auth0_connection
-    AUTH0_WEB_CLIENT_ID     = auth0_client.operator["web"].client_id
-    AUTH0_IOS_CLIENT_ID     = auth0_client.operator["ios"].client_id
-    AUTH0_ANDROID_CLIENT_ID = auth0_client.operator["android"].client_id
-    MOBILE_REDIRECT_URI     = local.mobile_route
-    RUST_LOG                = "info"
-  }
-
   iam_policy = [jsonencode({
     Version = "2012-10-17"
     Statement = [
+      {
+        Effect = "Allow"
+        Action = ["ssm:GetParameter"]
+        Resource = [
+          aws_ssm_parameter.application.arn,
+          "arn:aws:ssm:${local.region}:${data.aws_caller_identity.current.account_id}:parameter/${local.prefix}/admin-subject",
+        ]
+      },
       {
         Effect = "Allow"
         Action = [
@@ -52,8 +63,7 @@ module "api" {
 
   lambdas = {
     public = {
-      binary      = "${path.module}/../../backend/target/lambda/rolling-local-api/bootstrap"
-      environment = { SURFACE = "public" }
+      binary = "${path.module}/../../backend/target/lambda/rolling-local-api/bootstrap"
       routes = [
         {
           priority      = 475
@@ -70,11 +80,12 @@ module "api" {
       ]
     }
     operator = {
-      binary      = "${path.module}/../../backend/target/lambda/rolling-local-api/bootstrap"
-      environment = { SURFACE = "operator", ADMIN_SUBJECT = var.admin_subject }
-      routes      = []
+      binary = "${path.module}/../../backend/target/lambda/rolling-local-api/bootstrap"
+      routes = []
     }
   }
+
+  depends_on = [aws_ssm_parameter.application]
 }
 
 data "aws_lb_target_group" "operator" {

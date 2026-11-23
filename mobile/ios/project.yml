@@ -15,10 +15,12 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.ahara.rollinglocal.operator
+        ROLLING_LOCAL_API_ORIGIN: "https://api.rolling-local.ahara.io"
     info:
       path: Generated/App-Info.plist
       properties:
         CFBundleDisplayName: Rolling Local
+        RollingLocalAPIOrigin: "$(ROLLING_LOCAL_API_ORIGIN)"
         UILaunchScreen: {}
         UIBackgroundModes: [location]
         NSLocationWhenInUseUsageDescription: Share your truck's approximate location while you choose to broadcast.

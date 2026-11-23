@@ -21,7 +21,7 @@ terraform {
 }
 
 provider "aws" {
-  region = "us-east-1"
+  region = local.region
   default_tags {
     tags = {
       Project   = "rolling-local"
@@ -31,6 +31,7 @@ provider "aws" {
 }
 
 locals {
+  region       = "us-east-1"
   prefix       = "rolling-local"
   site         = "rolling-local.ahara.io"
   api          = "api.rolling-local.ahara.io"

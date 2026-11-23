@@ -28,17 +28,6 @@ provider "auth0" {
   client_secret = data.aws_ssm_parameter.auth0_client_secret.value
 }
 
-variable "admin_subject" {
-  description = "The Rolling Local owner's verified Ahara Auth0 user ID (the sub claim)."
-  type        = string
-  nullable    = false
-
-  validation {
-    condition     = length(trimspace(var.admin_subject)) > 0 && var.admin_subject == trimspace(var.admin_subject)
-    error_message = "Set admin_subject to the product owner's Auth0 subject."
-  }
-}
-
 locals {
   site_origin      = "https://${local.site}"
   auth0_issuer     = nonsensitive(data.aws_ssm_parameter.auth0_issuer.value)

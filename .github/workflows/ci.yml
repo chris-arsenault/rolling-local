@@ -62,8 +62,6 @@ jobs:
   ci:
     needs: [android, ios]
     uses: chris-arsenault/ahara/.github/workflows/ci.yml@main
-    with:
-      terraform_variables: '{"admin_subject":${{ toJSON(vars.ROLLING_LOCAL_ADMIN_SUBJECT) }}}'
     secrets: inherit
 
   smoke:
@@ -85,10 +83,15 @@ jobs:
           curl "${curl_opts[@]}" "$api/public/trucks" | jq -e '
             (.trucks | type == "array") and
             all(.trucks[]; (.active and has("location")) or ((.active | not) and (has("location") | not)))'
-          curl "${curl_opts[@]}" "$site/" | grep -F 'Rolling Local'
+          shell="$(curl "${curl_opts[@]}" "$site/")"
+          grep -F 'Rolling Local' <<< "$shell"
           curl "${curl_opts[@]}" "$site/config.js" | grep -F "$api"
           for path in about register admin; do
-            curl "${curl_opts[@]}" "$site/$path" | grep -F 'Rolling Local'
+            route_shell="$(curl "${curl_opts[@]}" "$site/$path")"
+            if [[ "$route_shell" != "$shell" ]]; then
+              printf '/%s did not serve the SPA shell\n' "$path" >&2
+              exit 1
+            fi
           done
           curl "${curl_opts[@]}" "$api/public/config" | jq -e --arg audience "$api" '
             .issuer == "https://auth.ahara.io/" and .audience == $audience and

@@ -26,7 +26,7 @@ pub enum Surface {
     Operator,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OperatorConfig {
     pub issuer: String,
@@ -36,7 +36,7 @@ pub struct OperatorConfig {
     pub ios_client_id: String,
     pub android_client_id: String,
     pub redirect_uri: String,
-    #[serde(skip)]
+    #[serde(skip_serializing)]
     pub public_site: String,
     #[serde(skip)]
     pub admin_subject: Option<String>,
@@ -197,6 +197,11 @@ impl Api {
             config,
             surface,
         }
+    }
+
+    pub fn with_admin_subject(mut self, subject: Option<String>) -> Self {
+        self.config.admin_subject = subject;
+        self
     }
 
     pub async fn handle(&self, req: Request, now: DateTime<Utc>) -> Response<Body> {

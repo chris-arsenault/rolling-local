@@ -118,13 +118,14 @@ private func checkedData(_ data: Data, _ response: URLResponse) throws -> Data {
 }
 
 struct API {
-    var base = URL(string: "https://api.rolling-local.ahara.io")!
+    private let base: URL
 
     init() {
-        #if DEBUG
-        if let endpoint = ProcessInfo.processInfo.environment["ROLLING_LOCAL_API"],
-           let url = URL(string: endpoint) { base = url }
-        #endif
+        guard let origin = Bundle.main.object(forInfoDictionaryKey: "RollingLocalAPIOrigin") as? String,
+              let url = URL(string: origin), url.scheme == "https", url.host != nil else {
+            preconditionFailure("Set RollingLocalAPIOrigin to an HTTPS API origin.")
+        }
+        base = url
     }
 
     func request<T: Decodable>(_ path: String, method: String = "GET", bearer: String? = nil, body: (any Encodable)? = nil) async throws -> T {

@@ -21,7 +21,7 @@ android {
 
     buildTypes {
         debug {
-            providers.environmentVariable("ROLLING_LOCAL_API").orNull?.let {
+            providers.gradleProperty("rollingLocalApiOrigin").orNull?.let {
                 require(it.matches(Regex("https?://[a-zA-Z0-9.:-]+"))) { "Set an HTTP(S) API origin." }
                 buildConfigField("String", "API_ORIGIN", "\"$it\"")
             }

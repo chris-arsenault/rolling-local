@@ -23,7 +23,7 @@ const defaultApi = "https://api.rolling-local.ahara.io";
 const searchKey = (text: string) => text.normalize("NFD").replaceAll(/\p{M}/gu, "").toLowerCase();
 
 export function apiUrl(path: string): URL {
-  return new URL(path, window.__APP_CONFIG__?.apiBaseUrl ?? import.meta.env.VITE_API_ORIGIN ?? defaultApi);
+  return new URL(path, window.__APP_CONFIG__?.apiBaseUrl ?? defaultApi);
 }
 
 export function eligible(truck: Truck, now: number): Location | undefined {
