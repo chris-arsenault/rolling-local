@@ -76,6 +76,7 @@ private data class Draft(val jpeg: ByteArray, val captured: Instant)
 class MainActivity : ComponentActivity() {
     private val model get() = (application as RollingApp).model
     private var editSettings by mutableStateOf(false)
+    private var reviewMenu by mutableStateOf(false)
     private var draft by mutableStateOf<Draft?>(null)
     private var cameraFile: File? = null
 
@@ -111,7 +112,8 @@ class MainActivity : ComponentActivity() {
                     OperatorHome(screen, Modifier.padding(padding), ::signIn, ::toggle, ::openCamera,
                         { editSettings = true }, { model.scope.launch { model.signOut() } },
                         { model.scope.launch { model.refresh() } },
-                        { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it))) })
+                        { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it))) },
+                        { reviewMenu = true })
                 }
                 if (editSettings) {
                     val registration = screen.state.registration
@@ -128,6 +130,9 @@ class MainActivity : ComponentActivity() {
                             if (model.publish(photo.jpeg, photo.captured)) draft = null
                         }
                     })
+                }
+                if (reviewMenu) screen.state.profile?.menu?.let {
+                    MenuItemsDialog(it.id, model.client, dismiss = { reviewMenu = false })
                 }
             }
         }
@@ -255,6 +260,7 @@ private fun OperatorHome(
     signOut: () -> Unit,
     refresh: () -> Unit,
     showMenu: (String) -> Unit,
+    review: () -> Unit,
 ) {
     val profile = screen.state.profile
     val registration = screen.state.registration
@@ -306,6 +312,7 @@ private fun OperatorHome(
                         profile.menu?.let {
                             Text("Photo taken ${displayTime(it.capturedAt)}")
                             TextButton({ showMenu(it.url) }) { Text("View published photo") }
+                            OutlinedButton(review) { Text("Review menu items") }
                         }
                         OutlinedButton(camera) { Text("Open menu camera") }
                     }

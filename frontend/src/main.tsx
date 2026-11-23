@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { eligible, filterDirectory, loadDirectory, offline, type Truck } from "./directory";
+import { eligible, filterDirectory, loadCatalog, loadDirectory, offline, type Catalog, type Truck } from "./directory";
 import "./style.css";
 
 const time = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -113,12 +113,33 @@ type Filter = "all" | "serving";
 
 function App() {
   const { trucks, status, now } = useDirectory();
+  const [catalog, setCatalog] = useState<Catalog>();
+  const [catalogUnavailable, setCatalogUnavailable] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    let loading = false;
+    const refresh = async () => {
+      if (loading) return;
+      loading = true;
+      try {
+        const next = await loadCatalog(controller.signal);
+        if (!controller.signal.aborted) { setCatalog(next); setCatalogUnavailable(false); }
+      } catch {
+        if (!controller.signal.aborted) setCatalogUnavailable(true);
+      } finally {
+        loading = false;
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => { if (!document.hidden) void refresh(); }, 120_000);
+    return () => { controller.abort(); window.clearInterval(timer); };
+  }, []);
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<"map" | "directory">("map");
   const [filter, setFilter] = useState<Filter>("all");
   const [selected, setSelected] = useState<string | null>(null);
   const select = useCallback((id: string) => setSelected(id), []);
-  const matches = filterDirectory(trucks, query);
+  const matches = filterDirectory(trucks, query, catalog);
   const serving = matches.filter((truck) => eligible(truck, now));
   const results = filter === "serving" ? serving : matches;
   const detail = trucks.find((truck) => truck.id === selected);
@@ -139,14 +160,15 @@ function App() {
           <p>Live locations and menu photos from local food trucks, shared by the people cooking.</p>
         </div>
         <label className="search">
-          <span className="screen-reader">Search trucks or cuisine</span>
-          <input type="search" value={query} onChange={(event) => setQuery(event.currentTarget.value)} placeholder="Search by truck or cuisine" />
+          <span className="screen-reader">Search trucks, cuisines and menu items</span>
+          <input type="search" value={query} onChange={(event) => setQuery(event.currentTarget.value)} placeholder="Search trucks, cuisines or dishes" />
         </label>
         <div className="filters" role="group" aria-label="Show">
           <button type="button" aria-pressed={filter === "all"} onClick={() => setFilter("all")}>All trucks <b>{matches.length}</b></button>
           <button type="button" aria-pressed={filter === "serving"} onClick={() => setFilter("serving")}>Serving now <b>{serving.length}</b></button>
         </div>
         {status === "unavailable" && <p className="network" role="status">Live updates are unavailable. Showing the last directory we loaded, with locations hidden.</p>}
+        {catalogUnavailable && query.trim() && <p className="network" role="status">Menu search could not refresh. Truck listings and photos are still available.</p>}
         <section className="directory" aria-labelledby="directory-title">
           {results.length === 0 ? <p className="empty">{directoryMessage}</p> : (
             <ul>
@@ -158,6 +180,7 @@ function App() {
                       <span className="truck-main">
                         <strong>{truck.name}</strong>
                         <span className="cuisine">{truck.cuisine}</span>
+                        {truck.matchedItems.map(item => <span key={item.id}>{item.name}{item.priceText && ` · ${item.priceText}`}</span>)}
                         <span className="truck-meta">
                           {position ? `Updated ${ago(position.recordedAt, now)}` : "Location hidden"}
                           {truck.menu && " · Menu photo"}

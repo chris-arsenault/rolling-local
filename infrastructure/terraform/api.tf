@@ -3,6 +3,7 @@ resource "aws_ssm_parameter" "application" {
   type = "String"
   value = jsonencode({
     truckTable      = aws_dynamodb_table.trucks.name
+    extractionTable = aws_dynamodb_table.extractions.name
     menuBucket      = aws_s3_bucket.menus.id
     publicSite      = local.site_origin
     issuer          = local.auth0_issuer
@@ -48,6 +49,11 @@ module "api" {
           "dynamodb:ConditionCheckItem", "dynamodb:Scan",
         ]
         Resource = aws_dynamodb_table.trucks.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem"]
+        Resource = aws_dynamodb_table.extractions.arn
       },
       {
         Effect   = "Allow"

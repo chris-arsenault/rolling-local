@@ -115,7 +115,7 @@ frame ui_menu_screen "04  ·  MENU PHOTO CAPTURE" ui_phone z 84 in-layer ui_mock
   }
   node ui_m_retake "RETAKE" ui_input z 93 text-size 25 at 145,4050 size 310,77 edited "Food truck UI mockups (agent)" at 1795326199420
   node ui_m_publish "PUBLISH PHOTO" ui_primary z 94 text-size 25 at 475,4050 size 330,77 edited "Food truck UI mockups (agent)" at 1795326199420
-  text ui_m_timestamp "Published menu shows: Updated today, 11:42 AM" z 95 text-color #5c7184 text-size 21 at 145,4150 size 660,45 edited "Food truck UI mockups (agent)" at 1795326199420
+  text ui_m_timestamp "Published 11:42 AM · Menu items processing" z 95 text-color #5c7184 text-size 21 at 145,4150 size 660,45
   text ui_m_privacy "Photo metadata removed before publishing." z 96 text-color #5c7184 text-size 21 at 145,4205 size 660,42 edited "Food truck UI mockups (agent)" at 1795326199420
 }
 frame ui_consumer_map_screen "05  ·  CONSUMER MAP  /  WEB" ui_phone z 97 in-layer ui_mockups link "https://sulion.services.ahara.io/?plan=1e5d89fe-2b7a-4545-bee5-32a05223a975&phase=1fc0e83e-65e9-444d-ba61-614cb7280c28" at 940,3300 size 750,1030 edited "Food truck UI mockups (agent)" at 1795326199420 {
@@ -144,13 +144,13 @@ frame ui_directory_screen "06  ·  COMPLETE DIRECTORY  /  WEB" ui_phone z 114 in
   text ui_d_head "All food trucks" z 115 text-color #1a3249 text-size 36 bold at 1825,3390 size 350,55 edited "Food truck UI mockups (agent)" at 1795326199420
   text ui_d_ahara "An Ahara product" z 147 text-size 19 text-color #168060 link "https://ahara.io" at 2180,3405 size 166,33
   node ui_d_site_menu "Menu · About" ui_light z 148 text-size 19 at 2345,3390 size 135,54
-  node ui_d_search "Search name or cuisine…" ui_input z 116 text-size 23 padding 22 align left at 1825,3465 size 655,70 edited "Food truck UI mockups (agent)" at 1795326199420
+  node ui_d_search "Search trucks, cuisines or menu items…" ui_input z 116 text-size 23 padding 22 align left at 1825,3465 size 655,70
   node ui_d_all "ALL" ui_primary z 117 text-size 21 at 1825,3555 size 140,56 edited "Food truck UI mockups (agent)" at 1795326199420
   node ui_d_mex "MEXICAN" ui_muted z 118 text-size 21 at 1980,3555 size 165,56 edited "Food truck UI mockups (agent)" at 1795326199420
   node ui_d_bbq "BBQ" ui_muted z 119 text-size 21 at 2160,3555 size 120,56 edited "Food truck UI mockups (agent)" at 1795326199420
   node ui_d_coffee "COFFEE" ui_muted z 120 text-size 21 at 2295,3555 size 185,56 edited "Food truck UI mockups (agent)" at 1795326199420
   frame ui_d_card1 "COPPER CANYON TACOS" ui_surface z 121 at 1825,3650 size 655,178 edited "Food truck UI mockups (agent)" at 1795326199420 {
-    text ui_d_card1sub "Mexican · Street food" z 122 text-color #5a7085 text-size 22 at 1855,3700 size 550,34 edited "Food truck UI mockups (agent)" at 1795326199420
+    text ui_d_card1sub "Carne asada tacos · $12" z 122 text-color #5a7085 text-size 22 at 1855,3700 size 550,34
     node ui_d_active "● ACTIVE NOW" ui_light z 123 text-size 20 at 1855,3750 size 245,54 edited "Food truck UI mockups (agent)" at 1795326199420
     text ui_d_photo1 "Menu updated today" z 124 text-color #5a7085 text-size 20 at 2120,3755 size 330,35 edited "Food truck UI mockups (agent)" at 1795326199420
   }
@@ -183,4 +183,51 @@ publicapi.right -> dynamo.left "read" as m4y94p4 z 31 in aws_lane edited "Food t
 privacy.top ..> publicapi.bottom "eligible only" as w8v1i7w z 33 in aws_lane edited "Food truck architecture (agent)" at 1795315910047
 webapp.left -> gateway.top "registration + admin API" as web_operations z 145 via 1910,416 1910,294 1055,294
 s3.right -> cdn.left "origin" as d78d0hl z 40 edited "Food truck architecture (agent)" at 1795315910047
+style ai_note_style fill #fff9ee line #dec48f line-width 1 text-color #59431e
+style ai_operator_style fill #ecf5ff line #6b9bc8 line-width 2 text-color #183957
+style ai_process_style fill #e9f7f1 line #56a68d line-width 2 text-color #155844
+style ai_search_style fill #f1ecff line #8c75c8 line-width 2 text-color #453272
+style ai_store_style fill #fff6e6 line #c49c4f line-width 2 text-color #5a4014
+layer menu_ai "07 · AI menu extraction and search"
+text ai_phase_title "AI MENU EXTRACTION + SEARCH  /  PHASE 1 DESIGN" z 147 jump in-layer menu_ai link "https://sulion.services.ahara.io/?plan=522c0ba3-b681-412e-a349-cc371fbb0d8a&phase=5e4ff1a0-924d-4871-a777-237193b6ebcd" text-color #1b3651 text-size 44 bold at 115,4600 size 2400,78 edited "Rolling Local Phase 1 (agent)" at 1795458330190
+text ai_phase_subtitle "Published photos remain authoritative · async one-shot AI parsing · operator edits · deterministic consumer search" z 148 in-layer menu_ai text-color #50667b text-size 23 at 115,4681 size 2390,44 edited "Rolling Local Phase 1 (agent)" at 1795458330190
+frame ai_pipeline "01  ·  IMAGE → ITEM CATALOG" lane z 149 in-layer menu_ai link "https://sulion.services.ahara.io/?plan=522c0ba3-b681-412e-a349-cc371fbb0d8a&phase=5e4ff1a0-924d-4871-a777-237193b6ebcd" at 90,4760 size 2490,620 edited "Rolling Local Phase 1 (agent)" at 1795458330190 {
+  node ai_capture "Operator publishes photo" / "Existing authenticated upload + publish" ai_operator_style z 150 link "https://sulion.services.ahara.io/?plan=522c0ba3-b681-412e-a349-cc371fbb0d8a&phase=5e4ff1a0-924d-4871-a777-237193b6ebcd" at 133,4885 size 424,126 edited "Rolling Local Phase 1 (agent)" at 1795458503645
+  node ai_original "Sanitized JPEG in S3" / "Immutable menu ID + capture time" ai_store_style z 151 at 620,4885 size 424,126 edited "Rolling Local Phase 1 (agent)" at 1795458330190
+  node ai_queue "DynamoDB Streams" / "Queued extraction written with the photo reference" ai_process_style z 152 link "https://sulion.services.ahara.io/?plan=522c0ba3-b681-412e-a349-cc371fbb0d8a&phase=16272c84-9b21-414a-a6b7-66e174793df7" at 1107,4885 size 424,126 edited "Rolling Local Phase 1 (agent)" at 1795458503645
+  node ai_model "Amazon Bedrock" / "GPT-6.2 Sol reads the published JPEG" ai_process_style z 153 link "https://sulion.services.ahara.io/?plan=522c0ba3-b681-412e-a349-cc371fbb0d8a&phase=16272c84-9b21-414a-a6b7-66e174793df7" at 1594,4885 size 424,126 edited "Rolling Local Phase 1 (agent)" at 1795458503645
+  node ai_catalog "Versioned catalog" / "DynamoDB items · job status · manual edits" ai_store_style z 154 link "https://sulion.services.ahara.io/?plan=522c0ba3-b681-412e-a349-cc371fbb0d8a&phase=6fd83c6f-8b52-44c8-92ce-c39a77ea9ca5" at 2080,4885 size 424,126 edited "Rolling Local Phase 1 (agent)" at 1795458503645
+  node ai_operator_ui "Operator correction UI" / "iOS / Android · nonblocking" ai_operator_style z 155 link "https://sulion.services.ahara.io/?plan=522c0ba3-b681-412e-a349-cc371fbb0d8a&phase=2a2ace7f-44c2-412b-8413-7c95cb69d5bb" at 133,5135 size 424,126 edited "Rolling Local Phase 1 (agent)" at 1795458503645
+  node ai_edit_api "Authorized item edit API" / "Revision check · ownership · curated tags" ai_process_style z 156 link "https://sulion.services.ahara.io/?plan=522c0ba3-b681-412e-a349-cc371fbb0d8a&phase=2a2ace7f-44c2-412b-8413-7c95cb69d5bb" at 620,5135 size 424,126 edited "Rolling Local Phase 1 (agent)" at 1795458503645
+  node ai_public_catalog "Public catalog read" / "Approved trucks · current photo only" ai_process_style z 157 link "https://sulion.services.ahara.io/?plan=522c0ba3-b681-412e-a349-cc371fbb0d8a&phase=6fd83c6f-8b52-44c8-92ce-c39a77ea9ca5" at 1350,5135 size 424,126 edited "Rolling Local Phase 1 (agent)" at 1795458503645
+  node ai_consumer "Web discovery" / "Phrase/text + exact tag matching · no LLM" ai_search_style z 158 link "https://sulion.services.ahara.io/?plan=522c0ba3-b681-412e-a349-cc371fbb0d8a&phase=a559e0bf-07f9-4c11-9691-f8091c3793ce" at 2080,5135 size 424,126 edited "Rolling Local Phase 1 (agent)" at 1795458503645
+}
+frame ai_ui "02  ·  OPERATOR + CONSUMER SCREENS" lane z 159 in-layer menu_ai link "https://sulion.services.ahara.io/?plan=522c0ba3-b681-412e-a349-cc371fbb0d8a&phase=5e4ff1a0-924d-4871-a777-237193b6ebcd" at 90,5440 size 2490,638 edited "Rolling Local Phase 1 (agent)" at 1795458330190 {
+  frame ai_review_mock "OPERATOR / MENU REVIEW" ui_phone z 160 at 135,5550 size 1130,480 edited "Rolling Local Phase 1 (agent)" at 1795458330190 {
+    text ai_review_header "Your photo is published    ·    Items ready" z 161 text-color #183957 text-size 31 bold at 170,5624 size 1050,50 edited "Rolling Local Phase 1 (agent)" at 1795458330190
+    node ai_item_example "Spicy Tuna Roll    $12.50" / "Tuna, spicy mayo, cucumber, sushi rice" ui_surface z 162 text-size 27 at 170,5706 size 1055,125 edited "Rolling Local Phase 1 (agent)" at 1795458330190
+    node ai_tags_example "Japanese   ·   Sushi   ·   Hot" / "Only curated tags; operator may remove or correct" ai_process_style z 163 text-size 24 at 170,5850 size 1055,98 edited "Rolling Local Phase 1 (agent)" at 1795458330190
+    text ai_review_note "Edit extracted details without changing the published photo." z 164 text-color #536579 text-size 22 at 170,5972 size 1050,34 edited "Rolling Local Phase 1 (agent)" at 1795458330190
+  }
+  frame ai_discovery_mock "PUBLIC / SEARCH RESULTS" ui_phone z 165 link "https://sulion.services.ahara.io/?plan=522c0ba3-b681-412e-a349-cc371fbb0d8a&phase=a559e0bf-07f9-4c11-9691-f8091c3793ce" at 1370,5550 size 1145,504 edited "Rolling Local Phase 1 (agent)" at 1795458503645 {
+    node ai_query "Search: sushi" ui_input z 166 text-size 29 padding 18 align left at 1410,5635 size 1050,72 edited "Rolling Local Phase 1 (agent)" at 1795458330190
+    node ai_search_result "KOKORO SUSHI TRUCK" / "Spicy Tuna Roll — $12.50     ·     Sushi" ui_surface z 167 text-size 28 at 1410,5730 size 1050,140 edited "Rolling Local Phase 1 (agent)" at 1795458330190
+    node ai_search_photo "VIEW ORIGINAL MENU PHOTO" ui_primary z 168 text-size 24 at 1410,5895 size 1050,76 edited "Rolling Local Phase 1 (agent)" at 1795458330190
+    text ai_search_note "“hot dog” matches an item phrase; “sushi” matches the tag." z 169 text-color #52697d text-size 22 at 1410,5991 size 1050,39 edited "Rolling Local Phase 1 (agent)" at 1795458330190
+  }
+}
+frame ai_contract "03  ·  CONTROLLED TAGS AND DATA CONTRACT" lane z 170 in-layer menu_ai link "https://sulion.services.ahara.io/?plan=522c0ba3-b681-412e-a349-cc371fbb0d8a&phase=5e4ff1a0-924d-4871-a777-237193b6ebcd" at 90,6110 size 2490,370 edited "Rolling Local Phase 1 (agent)" at 1795458330190 {
+  node ai_schema "ITEM FIELDS" / "item ID · order · name · description? · priceText? · tag IDs[]" ai_store_style z 171 at 140,6216 size 740,132 edited "Rolling Local Phase 1 (agent)" at 1795458330190
+  node ai_tags "CURATED VOCABULARY" / "Cuisine + food type + Hot / Vegan / Vegetarian" ai_process_style z 172 at 970,6216 size 740,132 edited "Rolling Local Phase 1 (agent)" at 1795458330190
+  node ai_rules "NO INVENTED FACTS" / "Unknown stays null · Hot = spicy · dietary tags require evidence" ai_note_style z 173 at 1800,6216 size 740,132 edited "Rolling Local Phase 1 (agent)" at 1795458330190
+}
+text ai_footer "AI is ingestion-only. Current menu replaces old catalog visibility; existing location privacy and offline discovery remain unchanged." z 174 in-layer menu_ai text-color #566d7c text-size 22 at 116,6516 size 2415,50 edited "Rolling Local Phase 1 (agent)" at 1795458330190
+ai_capture.right -> ai_original.left "publish" as fpmf64i z 175 in ai_pipeline edited "Rolling Local Phase 1 (agent)" at 1795458330190
+ai_original.right -> ai_queue.left "enqueue" as p0t0v56 z 176 in ai_pipeline edited "Rolling Local Phase 1 (agent)" at 1795458330190
+ai_queue.right -> ai_model.left "process" as unw41ve z 177 in ai_pipeline edited "Rolling Local Phase 1 (agent)" at 1795458330190
+ai_model.right -> ai_catalog.left "validated result" as eh2s221 z 178 in ai_pipeline edited "Rolling Local Phase 1 (agent)" at 1795458330190
+ai_edit_api.right -> ai_catalog.bottom "versioned corrections" as i80wwqo z 180 via 1150,5300 2290,5300 in ai_pipeline edited "Rolling Local Phase 1 (agent)" at 1795458330190
+ai_catalog.bottom -> ai_public_catalog.top "current items" as f5ioe9a z 181 via 2270,5080 1560,5080 in ai_pipeline edited "Rolling Local Phase 1 (agent)" at 1795458330190
+ai_operator_ui.right -> ai_edit_api.left "edit" as jyd0x6m z 179 in ai_pipeline edited "Rolling Local Phase 1 (agent)" at 1795458330190
+ai_public_catalog.right -> ai_consumer.left "catalog GET" as u7ns1de z 182 in ai_pipeline edited "Rolling Local Phase 1 (agent)" at 1795458330190
 opening main_title

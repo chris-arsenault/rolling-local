@@ -35,9 +35,42 @@ struct Settings: Codable {
 }
 
 struct Menu: Codable {
+    let id: UUID
     let url: URL
     let capturedAt: Date
     let publishedAt: Date
+}
+
+struct MenuItem: Codable, Identifiable {
+    var id = UUID()
+    var position = 0
+    var name = ""
+    var description: String?
+    var priceText: String?
+    var tagIds: [String] = []
+}
+
+struct MenuTag: Decodable, Identifiable {
+    let id: String
+    let label: String
+}
+
+struct MenuExtraction: Decodable {
+    let menuId: UUID
+    let revision: UUID
+    let status: String
+    let items: [MenuItem]
+}
+
+struct MenuResults: Decodable {
+    let extraction: MenuExtraction?
+    let tags: [MenuTag]
+}
+
+struct MenuCorrection: Encodable {
+    let menuId: UUID
+    let revision: UUID?
+    let items: [MenuItem]
 }
 
 struct Profile: Codable {

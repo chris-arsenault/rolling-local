@@ -15,7 +15,13 @@ Merges to `main` run the iOS and Android builds, followed by Ahara’s reusable 
 
 The platform registration is in `ahara-infra/infrastructure/terraform/control/project-rolling-local.tf`. The application stack is in `infrastructure/terraform`. Ahara’s shared OG server serves the React shell with route-specific link previews, including on direct URLs and Auth0 callbacks. React selects the route from the path. CloudFront serves the built assets and published menu JPEGs from private S3.
 
-## Operator access
+## Menu extraction
+
+The menu worker uses its Lambda execution role to read the published JPEG from S3 and invoke OpenAI GPT-6.2 Sol through Amazon Bedrock Runtime. Terraform sets `BEDROCK_MODEL_ID` to `us.openai.gpt-6.2-sol`. Enable access to this model in the deployment account. The role can invoke the US inference profile from `us-east-1` and its foundation model in Northern Virginia, Ohio and Oregon through that profile. [AWS model card](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-2-sol.html)
+
+The stream mapping retries failed records three times and sends exhausted deliveries to `rolling-local-menu-failures`. The worker logs the menu ID, job ID and failure code. Operators can retry extraction from the app or enter items themselves. A redelivery reads the current record and preserves corrections.
+
+## Operator access and enrollment
 
 Share `https://rolling-local.ahara.io/register` directly with operators. They use an Ahara Auth0 account, submit the truck form, and return to that URL for their review status. The owner uses `https://rolling-local.ahara.io/admin` to review and manage listings. The discovery homepage serves consumers and links to the informational About page.
 

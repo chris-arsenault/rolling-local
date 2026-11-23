@@ -9,6 +9,7 @@ use rolling_local_api::{
     Api, OperatorConfig, Surface,
     domain::{Fix, Position, Profile, PublicTruck, Session, Truck},
     media::{Media, MediaError, UploadTicket},
+    menus::Extraction,
     storage::{Record, Store, StoreError},
 };
 use serde_json::{Value, json};
@@ -20,6 +21,7 @@ use uuid::Uuid;
 
 #[derive(Default)]
 struct Records {
+    extractions: HashMap<(Uuid, Uuid), Record<Extraction>>,
     trucks: HashMap<Uuid, Record<Truck>>,
     operators: HashMap<String, Uuid>,
     sessions: HashMap<Uuid, Record<Session>>,
@@ -31,6 +33,54 @@ struct Memory(Mutex<Records>);
 
 #[async_trait]
 impl Store for Memory {
+    async fn extraction(
+        &self,
+        truck: Uuid,
+        menu: Uuid,
+    ) -> Result<Option<Record<Extraction>>, StoreError> {
+        Ok(self
+            .0
+            .lock()
+            .unwrap()
+            .extractions
+            .get(&(truck, menu))
+            .cloned())
+    }
+    async fn publish_menu(
+        &self,
+        previous: Uuid,
+        truck: Record<Truck>,
+        extraction: Record<Extraction>,
+    ) -> Result<(), StoreError> {
+        let mut db = self.0.lock().unwrap();
+        let key = (truck.value.id, extraction.value.menu_id);
+        if db.trucks.get(&truck.value.id).map(|r| r.version) != Some(previous)
+            || db.extractions.contains_key(&key)
+        {
+            return Err(StoreError::Conflict);
+        }
+        db.trucks.insert(truck.value.id, truck);
+        db.extractions.insert(key, extraction);
+        Ok(())
+    }
+    async fn write_extraction(
+        &self,
+        record: &Record<Extraction>,
+        previous: Option<Uuid>,
+        truck_version: Option<Uuid>,
+    ) -> Result<(), StoreError> {
+        let mut db = self.0.lock().unwrap();
+        let key = (record.value.truck_id, record.value.menu_id);
+        if db.extractions.get(&key).map(|r| r.version) != previous
+            || truck_version.is_some_and(|v| {
+                db.trucks.get(&record.value.truck_id).map(|r| r.version) != Some(v)
+            })
+        {
+            return Err(StoreError::Conflict);
+        }
+        db.extractions.insert(key, record.clone());
+        Ok(())
+    }
     async fn truck(&self, id: Uuid) -> Result<Option<Record<Truck>>, StoreError> {
         Ok(self.0.lock().unwrap().trucks.get(&id).cloned())
     }
@@ -142,7 +192,10 @@ impl Media for MockMedia {
 }
 
 fn apis() -> (Api, Api) {
-    let store = Arc::new(Memory::default());
+    with_store(Arc::new(Memory::default()))
+}
+
+fn with_store(store: Arc<Memory>) -> (Api, Api) {
     let media = Arc::new(MockMedia::default());
     let config = OperatorConfig {
         issuer: "https://signin.test/".into(),
@@ -164,6 +217,364 @@ fn apis() -> (Api, Api) {
         ),
         Api::new(store, media, config, Surface::Public),
     )
+}
+
+struct SimulatedReader(&'static str);
+
+#[async_trait]
+impl rolling_local_api::extraction_worker::MenuReader for SimulatedReader {
+    async fn read(
+        &self,
+        photo: &str,
+    ) -> Result<Vec<rolling_local_api::menus::Fields>, &'static str> {
+        assert!(photo.starts_with("data/menus/") && photo.ends_with(".jpg"));
+        match self.0 {
+            "fail" => Err("provider_unavailable"),
+            "unused" => panic!("A completed or superseded menu triggered inference"),
+            tag => Ok(vec![serde_json::from_value(json!({
+                "name":"Tuna roll","description":null,"priceText":"Small $6 / Large $9","tagIds":[tag]
+            })).unwrap()]),
+        }
+    }
+}
+
+async fn publish_photo(api: &Api, token: &str) -> (Uuid, Uuid) {
+    let ticket = request(
+        api,
+        Method::POST,
+        "/operator/menu/upload",
+        Some(token),
+        json!({"bytes":1200}),
+        now(),
+    )
+    .await;
+    let photo = request(
+        api,
+        Method::POST,
+        "/operator/menu/publish",
+        Some(token),
+        json!({"id":value(&ticket)["id"],"capturedAt":now()}),
+        now(),
+    )
+    .await;
+    assert_eq!(photo.status(), StatusCode::OK);
+    let registration = request(
+        api,
+        Method::GET,
+        "/operator",
+        Some(token),
+        Value::Null,
+        now(),
+    )
+    .await;
+    (
+        serde_json::from_value(value(&registration)["registration"]["id"].clone()).unwrap(),
+        serde_json::from_value(value(&photo)["id"].clone()).unwrap(),
+    )
+}
+
+async fn catalog(api: &Api) -> Value {
+    let reply = request(
+        api,
+        Method::GET,
+        "/public/menu-catalog",
+        None,
+        Value::Null,
+        now(),
+    )
+    .await;
+    assert_eq!(reply.status(), StatusCode::OK);
+    assert_eq!(reply.headers()["cache-control"], "no-store");
+    value(&reply)
+}
+
+#[tokio::test]
+async fn photo_to_worker_catalog_and_operator_correction() {
+    use rolling_local_api::extraction_worker::process;
+    let db = Arc::new(Memory::default());
+    let (operator, public) = with_store(db.clone());
+    let owner = auth(Uuid::new_v4(), "ios-client");
+    let other = auth(Uuid::new_v4(), "android-client");
+    enroll(&operator, &owner, settings("Night Market")).await;
+    enroll(&operator, &other, settings("Other truck")).await;
+    let (truck, id) = publish_photo(&operator, &owner).await;
+    let photo = catalog(&public).await["menus"][0].clone();
+    assert_eq!(photo["status"], "queued");
+    assert_eq!(photo["items"], json!([]));
+    for failure in ["fail", "unsupported-tag"] {
+        assert!(
+            process(db.as_ref(), &SimulatedReader(failure), truck, id, id)
+                .await
+                .is_err()
+        );
+        let failed = catalog(&public).await;
+        assert_eq!(failed["menus"][0]["status"], "failed");
+        assert_eq!(failed["menus"][0]["url"], photo["url"]);
+        assert_eq!(failed["menus"][0]["items"], json!([]));
+    }
+    let failed = db.extraction(truck, id).await.unwrap().unwrap();
+    let retry = request(
+        &operator,
+        Method::POST,
+        "/operator/menu/extraction/retry",
+        Some(&owner),
+        json!({"menuId":id, "revision":failed.version}),
+        now(),
+    )
+    .await;
+    assert_eq!(retry.status(), StatusCode::OK);
+    let generation = db
+        .extraction(truck, id)
+        .await
+        .unwrap()
+        .unwrap()
+        .value
+        .job_id;
+    process(db.as_ref(), &SimulatedReader("unused"), truck, id, id)
+        .await
+        .unwrap();
+    process(
+        db.as_ref(),
+        &SimulatedReader("sushi"),
+        truck,
+        id,
+        generation,
+    )
+    .await
+    .unwrap();
+    let ready = catalog(&public).await;
+    let parsed = &ready["menus"][0]["items"][0];
+    assert_eq!(parsed["priceText"], "Small $6 / Large $9");
+    assert_eq!(parsed["description"], Value::Null);
+    assert_eq!(parsed["tagIds"], json!(["sushi"]));
+    assert_eq!(ready["tags"].as_array().unwrap().len(), 25);
+    let path = "/operator/menu/extraction";
+    let current = value(
+        &request(
+            &operator,
+            Method::GET,
+            path,
+            Some(&owner),
+            Value::Null,
+            now(),
+        )
+        .await,
+    );
+    let mut edit = json!({"menuId":id,"revision":current["extraction"]["revision"],"items":current["extraction"]["items"]});
+    edit["items"][0]["priceText"] = json!("$11");
+    assert_eq!(
+        request(
+            &operator,
+            Method::PUT,
+            path,
+            Some(&other),
+            edit.clone(),
+            now()
+        )
+        .await
+        .status(),
+        StatusCode::CONFLICT
+    );
+    assert_eq!(
+        request(
+            &operator,
+            Method::PUT,
+            path,
+            Some(&owner),
+            edit.clone(),
+            now()
+        )
+        .await
+        .status(),
+        StatusCode::OK
+    );
+    assert_eq!(
+        request(&operator, Method::PUT, path, Some(&owner), edit, now())
+            .await
+            .status(),
+        StatusCode::CONFLICT
+    );
+    process(
+        db.as_ref(),
+        &SimulatedReader("unused"),
+        truck,
+        id,
+        generation,
+    )
+    .await
+    .unwrap();
+    let corrected = catalog(&public).await;
+    assert_eq!(corrected["menus"][0]["items"][0]["priceText"], "$11");
+    let listings = trucks(&public, now()).await;
+    assert!(
+        listings
+            .iter()
+            .all(|truck| truck.get("items").is_none() && truck.get("location").is_none())
+    );
+    // The consumer contract test searches these responses through its normal load functions.
+    println!(
+        "DISCOVERY_SAMPLE {}",
+        json!({"catalog":corrected,"directory":{"trucks":listings}})
+    );
+    let (_, newer) = publish_photo(&operator, &owner).await;
+    assert_ne!(newer, id);
+    assert_eq!(catalog(&public).await["menus"][0]["menuId"], json!(newer));
+    assert_eq!(catalog(&public).await["menus"][0]["items"], json!([]));
+    let (_, latest) = publish_photo(&operator, &owner).await;
+    process(db.as_ref(), &SimulatedReader("unused"), truck, newer, newer)
+        .await
+        .unwrap();
+    assert_eq!(catalog(&public).await["menus"][0]["menuId"], json!(latest));
+}
+
+#[tokio::test]
+async fn catalog_pages_include_only_current_approved_menus_and_keep_legacy_photos() {
+    use lambda_http::RequestExt;
+    use rolling_local_api::{
+        domain::{Listing, Menu, TruckStatus},
+        menus::{Fields, MenuItem, Status},
+    };
+    let db = Arc::new(Memory::default());
+    let (_, public) = with_store(db.clone());
+    let mut visible = Vec::new();
+    for index in 1..=6 {
+        let id = Uuid::from_u128(index);
+        let mut truck = Truck::new(
+            Listing {
+                name: format!("Lunch {index}"),
+                cuisine: "Street food".into(),
+            },
+            None,
+        );
+        truck.id = id;
+        truck.status = match index {
+            5 => TruckStatus::Pending,
+            6 => TruckStatus::Rejected,
+            _ => TruckStatus::Approved,
+        };
+        let menu_id = Uuid::new_v4();
+        truck.menu = Some(Menu {
+            id: menu_id,
+            url: format!("https://test.test/{menu_id}"),
+            captured_at: now(),
+            published_at: now(),
+        });
+        db.put_truck(None, Record::new(truck), false).await.unwrap();
+        if index <= 4 {
+            visible.push(id.to_string());
+        }
+        if index == 1 {
+            continue;
+        }
+        let mut row = Extraction::queued(id, menu_id);
+        row.status = Status::Ready;
+        row.items = (0..32)
+            .map(|position| MenuItem {
+                id: Uuid::new_v4(),
+                position,
+                fields: Fields {
+                    name: "Café   spécial".into(),
+                    description: Some("a".repeat(4000)),
+                    price_text: None,
+                    tag_ids: vec![],
+                },
+            })
+            .collect();
+        db.write_extraction(&Record::new(row), None, None)
+            .await
+            .unwrap();
+    }
+    let mut page = catalog(&public).await;
+    assert!(page["menus"][0]["status"].is_null());
+    assert_eq!(page["menus"][0]["items"], json!([]));
+    assert_eq!(page["menus"][1]["items"][0]["searchName"], "cafe special");
+    assert!(page["next"].is_string());
+    let mut seen = Vec::new();
+    loop {
+        seen.extend(
+            page["menus"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|menu| menu["truckId"].as_str().unwrap().to_owned()),
+        );
+        let Some(after) = page["next"].as_str() else {
+            break;
+        };
+        let params = HashMap::from([("after".to_string(), after.to_string())]);
+        let req = Request::builder()
+            .method(Method::GET)
+            .uri("/public/menu-catalog")
+            .body(Body::Empty)
+            .unwrap()
+            .with_query_string_parameters(params);
+        page = value(&public.handle(req, now()).await);
+        assert!(seen.len() <= visible.len());
+    }
+    assert_eq!(seen, visible);
+}
+
+struct PausedReader {
+    started: tokio::sync::Notify,
+    resume: tokio::sync::Notify,
+}
+
+#[async_trait]
+impl rolling_local_api::extraction_worker::MenuReader for PausedReader {
+    async fn read(
+        &self,
+        photo: &str,
+    ) -> Result<Vec<rolling_local_api::menus::Fields>, &'static str> {
+        self.started.notify_one();
+        self.resume.notified().await;
+        SimulatedReader("sushi").read(photo).await
+    }
+}
+
+#[tokio::test]
+async fn a_worker_finishing_after_a_correction_cannot_overwrite_it() {
+    let db = Arc::new(Memory::default());
+    let (operator, public) = with_store(db.clone());
+    let token = auth(Uuid::new_v4(), "ios-client");
+    enroll(&operator, &token, settings("Lunch")).await;
+    let (truck, id) = publish_photo(&operator, &token).await;
+    let reader = PausedReader {
+        started: Default::default(),
+        resume: Default::default(),
+    };
+    let job = rolling_local_api::extraction_worker::process(db.as_ref(), &reader, truck, id, id);
+    let correct = async {
+        reader.started.notified().await;
+        let path = "/operator/menu/extraction";
+        let current = value(
+            &request(
+                &operator,
+                Method::GET,
+                path,
+                Some(&token),
+                Value::Null,
+                now(),
+            )
+            .await,
+        );
+        assert_eq!(current["extraction"]["status"], "processing");
+        let edit = json!({"menuId":id,"revision":current["extraction"]["revision"],"items":[]});
+        let reply = request(&operator, Method::PUT, path, Some(&token), edit, now()).await;
+        assert_eq!(reply.status(), StatusCode::OK);
+        reader.resume.notify_one();
+    };
+    let (result, ()) = tokio::join!(job, correct);
+    assert!(result.is_err());
+    rolling_local_api::extraction_worker::process(
+        db.as_ref(),
+        &SimulatedReader("unused"),
+        truck,
+        id,
+        id,
+    )
+    .await
+    .unwrap();
+    assert_eq!(catalog(&public).await["menus"][0]["items"], json!([]));
 }
 
 fn auth(owner: Uuid, client: &str) -> String {

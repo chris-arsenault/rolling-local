@@ -62,6 +62,8 @@ jobs:
   ci:
     needs: [android, ios]
     uses: chris-arsenault/ahara/.github/workflows/ci.yml@main
+    with:
+      rust_extra_ci_commands: cargo test --locked --manifest-path backend/Cargo.toml --bins --tests
     secrets: inherit
 
   smoke:
@@ -80,6 +82,8 @@ jobs:
           site="https://rolling-local.ahara.io"
           curl_opts=(--fail --silent --show-error --retry 10 --retry-delay 10 --retry-all-errors --max-time 25)
           curl "${curl_opts[@]}" "$api/health" | jq -e '.status == "ok"'
+          curl "${curl_opts[@]}" "$api/public/menu-catalog" | jq -e '
+            .tagVocabularyVersion == 1 and (.menus | type == "array") and (.tags | length > 0)'
           curl "${curl_opts[@]}" "$api/public/trucks" | jq -e '
             (.trucks | type == "array") and
             all(.trucks[]; (.active and has("location")) or ((.active | not) and (has("location") | not)))'

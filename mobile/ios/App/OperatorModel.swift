@@ -172,6 +172,19 @@ private struct PublishMenu: Encodable { let id: UUID; let capturedAt: Date }
         return loaded
     }
 
+    func menuResults() async throws -> MenuResults {
+        try await authorized("operator/menu/extraction")
+    }
+
+    func saveMenu(_ correction: MenuCorrection) async throws -> MenuResults {
+        try await authorized("operator/menu/extraction", method: "PUT", body: correction)
+    }
+
+    func retryMenu(_ extraction: MenuExtraction) async throws -> MenuResults {
+        try await authorized("operator/menu/extraction/retry", method: "POST",
+            body: ["menuId": extraction.menuId, "revision": extraction.revision])
+    }
+
     private func authorized<T: Decodable>(_ path: String, method: String = "GET", body: (any Encodable)? = nil) async throws -> T {
         let config = try await configuration()
         let token = try await login.token(config: config)

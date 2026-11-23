@@ -11,6 +11,7 @@ const OWNER: &str = "/rolling-local/admin-subject";
 #[serde(rename_all = "camelCase")]
 struct Deployment {
     truck_table: String,
+    extraction_table: String,
     menu_bucket: String,
     #[serde(flatten)]
     identity: OperatorConfig,
@@ -63,6 +64,7 @@ async fn main() -> Result<(), Error> {
     let store = Arc::new(DynamoStore::new(
         aws_sdk_dynamodb::Client::new(&config),
         deployed.truck_table,
+        deployed.extraction_table,
     ));
     let media = Arc::new(S3Media::new(
         aws_sdk_s3::Client::new(&config),
@@ -112,6 +114,7 @@ mod tests {
     fn deployment_settings_expose_only_public_login_configuration() {
         let deployed: Deployment = serde_json::from_value(serde_json::json!({
             "truckTable": "rolling-local-trucks",
+            "extractionTable": "rolling-local-menu-items",
             "menuBucket": "rolling-local-menus",
             "publicSite": "https://rolling-local.test",
             "issuer": "https://auth.test/",

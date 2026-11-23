@@ -11,6 +11,10 @@ use uuid::Uuid;
 pub const MAX_UPLOAD_BYTES: i64 = 8 * 1024 * 1024;
 const CONTENT_TYPE: &str = "image/jpeg";
 
+pub(crate) fn published_menu_key(truck: Uuid, id: Uuid) -> String {
+    format!("data/menus/{truck}/{id}.jpg")
+}
+
 #[derive(Debug, Serialize)]
 pub struct UploadTicket {
     pub id: Uuid,
@@ -92,7 +96,7 @@ impl Media for S3Media {
 
     async fn publish(&self, truck: Uuid, id: Uuid) -> Result<String, MediaError> {
         let staging_key = format!("uploads/{truck}/{id}.jpg");
-        let public_key = format!("data/menus/{truck}/{id}.jpg");
+        let public_key = published_menu_key(truck, id);
         let source = self
             .client
             .get_object()

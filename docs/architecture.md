@@ -9,6 +9,8 @@ The deployment design routes the operator API and public discovery reads through
 | Architecture and operator/consumer UI | [PNG](diagrams/food-truck-discovery.png) | [Source](diagrams/food-truck-discovery.arconis) |
 | Truck registration, administration, and About | [PNG](diagrams/truck-registration.png) | [Source](diagrams/truck-registration.arconis) |
 
+Publication writes the truck’s menu pointer and a queued extraction in one DynamoDB transaction. DynamoDB Streams invokes a Lambda for each new or explicitly retried job. The worker reads the sanitized JPEG from S3, sends its bytes to OpenAI GPT-6.2 Sol on Amazon Bedrock, and validates the returned menu items. A revision check protects operator corrections. Exhausted stream retries go to an SQS failure queue. The public catalog joins approved listings to their current menu, independently of live location updates.
+
 ## Regenerate a diagram
 
 In a local Arconis canvas, use **File → Import document** to open the `.arconis` source. Show all layers, clear the selection, and use **File → Export PNG**. Save each PNG next to its editable source with the same base name.

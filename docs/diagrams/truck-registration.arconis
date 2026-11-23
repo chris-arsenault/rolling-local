@@ -70,4 +70,39 @@ frame about_page "04  ·  ABOUT FOR OPERATORS" panel link "https://sulion.servic
   node about_listing "Stay discoverable between stops" / "Approved listings stay searchable while offline." field text-size 26 at 1755,2642 size 740,118
   text about_review "A review comes before your truck appears in the public directory." text-size 25 text-color #456153 at 145,2805 size 2300,55
 }
+style ai_note_style fill #fff9ee line #dec48f line-width 1 text-color #59431e
+style ai_operator_style fill #ecf5ff line #6b9bc8 line-width 2 text-color #183957
+style ai_process_style fill #e9f7f1 line #56a68d line-width 2 text-color #155844
+style ai_search_style fill #f1ecff line #8c75c8 line-width 2 text-color #453272
+style ai_store_style fill #fff6e6 line #c49c4f line-width 2 text-color #5a4014
+style lane fill #f7fafc line #dbe4ee line-width 2 text-color #23344d title header
+style ui_phone fill #f9fafc line #cbd5e1 line-width 2 text-color #16243a title header
+style ui_surface fill #ffffff line #d8e2eb line-width 1 text-color #182c41
+style ui_warning fill #fff4df line #e8c67a line-width 1 text-color #85551a
+layer menu_registration "08 · Approved operator menu continuation"
+text ai_reg_title "REGISTRATION → POST-APPROVAL MENU MANAGEMENT" z 183 jump in-layer menu_registration link "https://sulion.services.ahara.io/?plan=522c0ba3-b681-412e-a349-cc371fbb0d8a&phase=5e4ff1a0-924d-4871-a777-237193b6ebcd" text-color #1b3651 text-size 42 bold at 115,3035 size 2410,74 edited "Rolling Local Phase 1 (agent)" at 1795458488968
+text ai_reg_subtitle "Registration review remains unchanged; menu extraction begins only after a truck is approved." z 184 in-layer menu_registration text-color #526a79 text-size 23 at 115,3118 size 2410,44 edited "Rolling Local Phase 1 (agent)" at 1795458488968
+frame ai_reg_flow "01  ·  EXISTING APPROVAL GATE / NEW MENU CONTINUATION" lane z 185 in-layer menu_registration link "https://sulion.services.ahara.io/?plan=522c0ba3-b681-412e-a349-cc371fbb0d8a&phase=5e4ff1a0-924d-4871-a777-237193b6ebcd" at 90,3200 size 2490,405 edited "Rolling Local Phase 1 (agent)" at 1795458488968 {
+  node ai_reg_pending "PENDING" / "Applicant and admin only" ui_warning z 186 at 143,3320 size 426,117 edited "Rolling Local Phase 1 (agent)" at 1795458488968
+  node ai_reg_review "OWNER REVIEW" / "Accept or reject registration" ai_operator_style z 187 at 645,3320 size 426,117 edited "Rolling Local Phase 1 (agent)" at 1795458488968
+  node ai_reg_approved "APPROVED" / "Public listing, even while offline" ai_process_style z 188 at 1147,3320 size 426,117 edited "Rolling Local Phase 1 (agent)" at 1795458488968
+  node ai_reg_menu "MENU PHOTO" / "Publish immediately; no AI approval" ai_operator_style z 189 at 1650,3320 size 426,117 edited "Rolling Local Phase 1 (agent)" at 1795458488968
+  node ai_reg_result "PARSED ITEMS" / "Status + corrections in app" ai_store_style z 190 at 2137,3320 size 405,117 edited "Rolling Local Phase 1 (agent)" at 1795458488968
+  text ai_reg_reject "Rejected trucks remain private. Pending/rejected operators cannot publish or edit a public menu." z 191 text-color #7c4b3e text-size 22 at 180,3500 size 2280,45 edited "Rolling Local Phase 1 (agent)" at 1795458488968
+}
+frame ai_reg_ui "02  ·  AFTER APPROVAL / OPERATOR APP" lane z 192 in-layer menu_registration link "https://sulion.services.ahara.io/?plan=522c0ba3-b681-412e-a349-cc371fbb0d8a&phase=5e4ff1a0-924d-4871-a777-237193b6ebcd" at 90,3690 size 2490,430 edited "Rolling Local Phase 1 (agent)" at 1795458488968 {
+  frame ai_reg_phone "Menu photo is live" ui_phone z 193 at 140,3788 size 1115,256 edited "Rolling Local Phase 1 (agent)" at 1795458488968 {
+    text ai_reg_published "Published 11:42 AM · Processing menu…" z 194 text-color #456579 text-size 29 at 173,3880 size 1045,50 edited "Rolling Local Phase 1 (agent)" at 1795458488968
+    node ai_reg_img "VIEW DATED ORIGINAL" ai_operator_style z 195 text-size 24 at 173,3955 size 1045,65 edited "Rolling Local Phase 1 (agent)" at 1795458488968
+  }
+  frame ai_reg_review_ui "Extracted menu · Editable" ui_phone z 196 link "https://sulion.services.ahara.io/?plan=522c0ba3-b681-412e-a349-cc371fbb0d8a&phase=2a2ace7f-44c2-412b-8413-7c95cb69d5bb" at 1350,3788 size 1155,271 edited "Rolling Local Phase 1 (agent)" at 1795458503645 {
+    node ai_reg_entry "Street Tacos — $4" / "Mexican · Tacos  ·  [Edit]" ui_surface z 197 text-size 27 at 1385,3875 size 1080,105 edited "Rolling Local Phase 1 (agent)" at 1795458488968
+    text ai_reg_fail "If parsing fails, keep the original photo and offer retry." z 198 text-color #52697d text-size 22 at 1385,3995 size 1085,40 edited "Rolling Local Phase 1 (agent)" at 1795458488968
+  }
+}
+text ai_reg_footer "The consumer directory remains approved-only; the public map still requires a fresh eligible location-sharing session." z 199 in-layer menu_registration text-color #566d7c text-size 22 at 120,4175 size 2390,55 edited "Rolling Local Phase 1 (agent)" at 1795458488968
+ai_reg_pending.right -> ai_reg_review.left "review" as y3bzvtg z 200 in ai_reg_flow edited "Rolling Local Phase 1 (agent)" at 1795458488968
+ai_reg_review.right -> ai_reg_approved.left "accept" as l8jy1nl z 201 in ai_reg_flow edited "Rolling Local Phase 1 (agent)" at 1795458488968
+ai_reg_approved.right -> ai_reg_menu.left "authorized" as i8g2dji z 202 in ai_reg_flow edited "Rolling Local Phase 1 (agent)" at 1795458488968
+ai_reg_menu.right -> ai_reg_result.left "async" as gv8sq6x z 203 in ai_reg_flow edited "Rolling Local Phase 1 (agent)" at 1795458488968
 opening registration_title

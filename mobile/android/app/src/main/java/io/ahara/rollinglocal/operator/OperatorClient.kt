@@ -48,7 +48,13 @@ import kotlin.coroutines.suspendCoroutine
     val event: EventArea? = null,
 )
 
-@Serializable data class Menu(val url: String, val capturedAt: String, val publishedAt: String)
+@Serializable data class Menu(val id: String, val url: String, val capturedAt: String, val publishedAt: String)
+@Serializable data class MenuItem(val id: String = UUID.randomUUID().toString(), val position: Int = 0,
+    val name: String = "", val description: String? = null, val priceText: String? = null, val tagIds: List<String> = emptyList())
+@Serializable data class MenuTag(val id: String, val label: String)
+@Serializable data class MenuExtraction(val menuId: String, val revision: String, val status: String, val items: List<MenuItem>)
+@Serializable data class MenuResults(val extraction: MenuExtraction?, val tags: List<MenuTag>)
+@Serializable data class MenuCorrection(val menuId: String, val revision: String?, val items: List<MenuItem>)
 @Serializable data class Profile(val id: String, val settings: Settings, val menu: Menu?)
 @Serializable enum class TruckStatus {
     @SerialName("pending") PENDING,
@@ -136,6 +142,11 @@ class OperatorClient(context: Context) {
     }
 
     suspend fun state(): OperatorState = request("operator")
+    suspend fun menuResults(): MenuResults = request("operator/menu/extraction")
+    suspend fun retryMenu(failed: MenuExtraction): MenuResults = request("operator/menu/extraction/retry", "POST",
+        json.encodeToString(mapOf("menuId" to failed.menuId, "revision" to failed.revision)))
+    suspend fun saveMenu(value: MenuCorrection): MenuResults =
+        request("operator/menu/extraction", "PUT", json.encodeToString(value))
     suspend fun settings(settings: Settings): OperatorState = request("operator/settings", "PUT", json.encodeToString(settings))
     suspend fun start(id: UUID, fix: Fix): Sharing = request("operator/sessions", "POST", json.encodeToString(Start(id.toString(), fix)))
     suspend fun update(id: UUID, fix: Fix): Sharing = request("operator/sessions/$id/fix", "PUT", json.encodeToString(fix))

@@ -18,6 +18,16 @@ The public directory includes approved trucks, even before an operator begins sh
 
 The operator captures a menu photo and sees its publication result. The API authorizes a signed upload to private S3 and publishes a sanitized JPEG. The consumer sees the capture and publication times with the photo. The directory and active feed use uncached responses.
 
+### Structured menus
+
+Each published photo keeps its menu ID, URL, capture time and publication time. A separate schema-v1 extraction moves from queued to processing, then ready or failed. A legacy photo can have no extraction. Operators can read the current revision and replace its ordered items, including while processing or after a failure. A replacement photo starts a new extraction. Conflicting edits return HTTP 409.
+
+An item has a stable ID, zero-based position, verbatim name, nullable description and nullable `priceText` (including sizes, currency and ranges as printed). Unreadable fields stay empty. V1 tags describe cuisine, food type and explicit attributes. Hot means spicy. Vegan and Vegetarian require an explicit label or defined menu symbol. The API supplies the vocabulary for correction and search.
+
+Discovery matches a normalized partial phrase within one truck name, cuisine, item name or description, or an exact tag ID, label or alias. Matched items retain their display prices and dated photo. An approved truck remains searchable between stops.
+
+Catalog pages include normalized item search fields and a nullable `next` cursor. Supply the cursor as `?after=` to read the next page. The browser refreshes this catalog every two minutes while visible and joins each entry to the current directory by truck and menu ID. Responses carry `Cache-Control: no-store`.
+
 ## Delivery
 
 The API uses the shared Ahara load balancer. The consumer site loads from CloudFront and private S3. Complete and exercise the API and both apps with simulated location before sideloading builds for the field trial.
@@ -31,6 +41,7 @@ All timestamps are UTC RFC 3339 and distances are in meters. Operator and admin 
 | `GET /health` | Report API availability |
 | `GET /public/config` | Return the public sign-in configuration for web, iOS, and Android |
 | `GET /public/trucks` | Return truck profiles, menu dates, status, and current eligible map positions |
+| `GET /public/menu-catalog` | Return current approved-truck menus, ready items and the versioned tag vocabulary |
 | `GET /operator` | Return the caller’s registration status, configured profile, and current session |
 | `POST /operator/registration` | Submit the caller’s truck for review and return its status on retry |
 | `PUT /operator/settings` | Update operating settings on the caller’s approved truck |
@@ -39,6 +50,9 @@ All timestamps are UTC RFC 3339 and distances are in meters. Operator and admin 
 | `DELETE /operator/sessions/{id}` | Stop the named session |
 | `POST /operator/menu/upload` | Obtain a short-lived signed JPEG upload |
 | `POST /operator/menu/publish` | Validate the uploaded image and publish the menu reference |
+| `GET /operator/menu/extraction` | Return the current extraction (nullable) and allowed tags |
+| `POST /operator/menu/extraction/retry` | Queue a fresh attempt for the caller’s failed menu and revision |
+| `PUT /operator/menu/extraction` | Replace ordered items for the approved caller's current menu using its menu ID and revision |
 | `GET /admin/trucks` | List public and private truck records for the owner |
 | `POST /admin/trucks` | Add a truck manually and optionally publish it |
 | `PUT /admin/trucks/{id}` | Edit listing details, review a pending submission, or link a confirmed operator account |

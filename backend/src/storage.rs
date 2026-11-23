@@ -1,4 +1,5 @@
 use crate::domain::{Profile, Session, Truck};
+use crate::menus::{Extraction, Status};
 use async_trait::async_trait;
 use aws_sdk_dynamodb::{
     Client,
@@ -43,6 +44,23 @@ impl StoreError {
 
 #[async_trait]
 pub trait Store: Send + Sync {
+    async fn extraction(
+        &self,
+        truck: Uuid,
+        menu: Uuid,
+    ) -> Result<Option<Record<Extraction>>, StoreError>;
+    async fn write_extraction(
+        &self,
+        record: &Record<Extraction>,
+        previous: Option<Uuid>,
+        truck_version: Option<Uuid>,
+    ) -> Result<(), StoreError>;
+    async fn publish_menu(
+        &self,
+        previous: Uuid,
+        truck: Record<Truck>,
+        extraction: Record<Extraction>,
+    ) -> Result<(), StoreError>;
     async fn truck(&self, id: Uuid) -> Result<Option<Record<Truck>>, StoreError>;
     async fn owned_truck(&self, subject: &str) -> Result<Option<Record<Truck>>, StoreError>;
     async fn session(&self, truck: Uuid) -> Result<Option<Record<Session>>, StoreError>;
@@ -67,6 +85,7 @@ pub trait Store: Send + Sync {
 pub struct DynamoStore {
     client: Client,
     table: String,
+    menus: String,
 }
 
 fn key(prefix: &str, id: impl std::fmt::Display) -> AttributeValue {
@@ -133,20 +152,64 @@ fn transaction_error(error: Option<&TransactWriteItemsError>, operation: &str) -
     }
 }
 
+fn extraction_item(record: &Record<Extraction>) -> Result<Attributes, StoreError> {
+    let mut data = item(AttributeValue::S(record.value.menu_id.to_string()), record)?;
+    data.insert(
+        "truckId".into(),
+        AttributeValue::S(record.value.truck_id.to_string()),
+    );
+    if record.value.status == Status::Queued {
+        data.insert(
+            "dispatch".into(),
+            AttributeValue::S(record.value.job_id.to_string()),
+        );
+    }
+    Ok(data)
+}
+
+fn conditional_put(
+    table: &str,
+    data: Attributes,
+    previous: Option<Uuid>,
+) -> Result<TransactWriteItem, StoreError> {
+    let (condition, values) = revision(previous);
+    let put = Put::builder()
+        .table_name(table)
+        .set_item(Some(data))
+        .condition_expression(condition)
+        .set_expression_attribute_values(values)
+        .build()
+        .map_err(|_| StoreError::unavailable("menu_transaction"))?;
+    Ok(TransactWriteItem::builder().put(put).build())
+}
+
 impl DynamoStore {
-    pub fn new(client: Client, table: String) -> Self {
-        Self { client, table }
+    pub fn new(client: Client, table: String, menus: String) -> Self {
+        Self {
+            client,
+            table,
+            menus,
+        }
     }
 
     async fn get<T: DeserializeOwned>(
         &self,
         key: AttributeValue,
     ) -> Result<Option<Record<T>>, StoreError> {
+        self.read(&self.table, HashMap::from([("id".into(), key)]))
+            .await
+    }
+
+    async fn read<T: DeserializeOwned>(
+        &self,
+        table: &str,
+        key: Attributes,
+    ) -> Result<Option<Record<T>>, StoreError> {
         let result = self
             .client
             .get_item()
-            .table_name(&self.table)
-            .key("id", key)
+            .table_name(table)
+            .set_key(Some(key))
             .consistent_read(true)
             .send()
             .await
@@ -169,6 +232,67 @@ impl DynamoStore {
 
 #[async_trait]
 impl Store for DynamoStore {
+    async fn extraction(
+        &self,
+        truck: Uuid,
+        menu: Uuid,
+    ) -> Result<Option<Record<Extraction>>, StoreError> {
+        self.read(
+            &self.menus,
+            HashMap::from([
+                ("truckId".into(), AttributeValue::S(truck.to_string())),
+                ("id".into(), AttributeValue::S(menu.to_string())),
+            ]),
+        )
+        .await
+    }
+
+    async fn write_extraction(
+        &self,
+        record: &Record<Extraction>,
+        previous: Option<Uuid>,
+        truck_version: Option<Uuid>,
+    ) -> Result<(), StoreError> {
+        let mut tx = self
+            .client
+            .transact_write_items()
+            .transact_items(conditional_put(
+                &self.menus,
+                extraction_item(record)?,
+                previous,
+            )?);
+        if let Some(version) = truck_version {
+            tx = tx.transact_items(self.condition_truck(record.value.truck_id, version)?);
+        }
+        tx.send()
+            .await
+            .map(|_| ())
+            .map_err(|e| transaction_error(e.as_service_error(), "write_extraction"))
+    }
+
+    async fn publish_menu(
+        &self,
+        previous: Uuid,
+        truck: Record<Truck>,
+        extraction: Record<Extraction>,
+    ) -> Result<(), StoreError> {
+        self.client
+            .transact_write_items()
+            .transact_items(conditional_put(
+                &self.table,
+                item(key("truck", truck.value.id), &truck)?,
+                Some(previous),
+            )?)
+            .transact_items(conditional_put(
+                &self.menus,
+                extraction_item(&extraction)?,
+                None,
+            )?)
+            .send()
+            .await
+            .map(|_| ())
+            .map_err(|e| transaction_error(e.as_service_error(), "publish_menu"))
+    }
     async fn truck(&self, id: Uuid) -> Result<Option<Record<Truck>>, StoreError> {
         self.get(key("truck", id)).await
     }

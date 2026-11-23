@@ -6,3 +6,4 @@ typescript_dir: frontend
 rust_artifacts:
   lambdas:
     - rolling-local-api
+    - menu-worker

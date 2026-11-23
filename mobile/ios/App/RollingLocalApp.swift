@@ -54,6 +54,9 @@ struct HomeView: View {
                                 ProgressView()
                             }
                             LabeledContent("Photo taken", value: menu.capturedAt.formatted(date: .abbreviated, time: .shortened))
+                            NavigationLink("Review menu items") {
+                                MenuItemsView(model: model, menuID: menu.id)
+                            }
                         }
                         Button("Open menu camera", systemImage: "camera") { Task { await model.openCamera() } }
                     }

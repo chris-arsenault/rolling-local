@@ -1,6 +1,8 @@
 mod admin;
 pub mod domain;
+pub mod extraction_worker;
 pub mod media;
+pub mod menus;
 pub mod storage;
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -272,6 +274,7 @@ impl Api {
         match (req.method(), req.uri().path()) {
             (&Method::GET, "/health") => Ok(ok(json!({ "status": "ok" }))),
             (&Method::GET, "/public/config") => Ok(ok(&self.config)),
+            (&Method::GET, "/public/menu-catalog") => self.catalog(req).await,
             (&Method::GET, "/public/trucks") => {
                 let trucks: Vec<_> = self
                     .store
@@ -331,6 +334,9 @@ impl Api {
     }
 
     async fn operator(&self, req: &Request, subject: &str, now: DateTime<Utc>) -> Reply {
+        if req.uri().path().starts_with("/operator/menu/") {
+            return self.menu_request(req, subject, now).await;
+        }
         match (req.method(), req.uri().path()) {
             (&Method::GET, "/operator") => self.read_operator(subject, now).await,
             (&Method::POST, "/operator/registration") => {
@@ -338,6 +344,17 @@ impl Api {
             }
             (&Method::PUT, "/operator/settings") => self.settings(subject, body(req)?, now).await,
             (&Method::POST, "/operator/sessions") => self.start(subject, body(req)?, now).await,
+            _ => self.session_request(req, subject, now).await,
+        }
+    }
+
+    async fn menu_request(&self, req: &Request, subject: &str, now: DateTime<Utc>) -> Reply {
+        match (req.method(), req.uri().path()) {
+            (&Method::GET, "/operator/menu/extraction") => self.extraction(subject).await,
+            (&Method::PUT, "/operator/menu/extraction") => self.correct_menu(subject, req).await,
+            (&Method::POST, "/operator/menu/extraction/retry") => {
+                self.retry_menu(subject, req).await
+            }
             (&Method::POST, "/operator/menu/upload") => {
                 let truck = self.approved(subject).await?;
                 let data: Upload = body(req)?;
@@ -346,7 +363,7 @@ impl Api {
             (&Method::POST, "/operator/menu/publish") => {
                 self.publish(subject, body(req)?, now).await
             }
-            _ => self.session_request(req, subject, now).await,
+            _ => Err(Failure::not_found()),
         }
     }
 
@@ -539,8 +556,9 @@ impl Api {
             url,
         };
         truck.value.menu = Some(menu.clone());
+        let extraction = Record::new(menus::Extraction::queued(truck.value.id, menu.id));
         self.store
-            .put_truck(Some(truck.version), Record::new(truck.value), false)
+            .publish_menu(truck.version, Record::new(truck.value), extraction)
             .await?;
         Ok(ok(menu))
     }
