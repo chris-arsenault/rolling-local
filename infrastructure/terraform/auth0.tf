@@ -43,17 +43,14 @@ locals {
 }
 
 data "auth0_user" "owner" {
+  # Auth0 filters by connection in the query. The provider leaves connection_name unset on reads.
   query            = "email:${jsonencode(local.owner_email)} AND identities.connection:${jsonencode(local.auth0_connection)}"
   skip_permissions = true
   skip_roles       = true
 
   lifecycle {
     postcondition {
-      condition = (
-        self.email_verified && !self.blocked &&
-        lower(self.email) == local.owner_email &&
-        self.connection_name == local.auth0_connection
-      )
+      condition     = self.email_verified && !self.blocked && lower(self.email) == local.owner_email
       error_message = "Rolling Local requires the verified, enabled owner account in Ahara’s shared Auth0 connection."
     }
   }
