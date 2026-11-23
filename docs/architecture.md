@@ -2,7 +2,7 @@
 
 The architecture canvas covers the operator app, location sharing, and public discovery. The registration canvas shows the direct operator entry, shared Auth0 sign-up, truck review, manual entry, and the public About page.
 
-The deployment design routes the operator API and public discovery reads through Ahara’s shared application load balancer to Lambda functions in the shared VPC. CloudFront serves the public site from private S3. See [Ahara hosting](backlog.md#ahara-hosting) for the platform integration requirements.
+The deployment design routes the operator API and public discovery reads through Ahara’s shared application load balancer to Lambda functions in the shared VPC. CloudFront serves path-specific link previews and the React shell through Ahara’s OG server. Built assets and menu photos come from private S3. See [Ahara hosting](backlog.md#ahara-hosting) for the platform integration requirements.
 
 | Diagram | Rendered PNG | Editable Arconis |
 | --- | --- | --- |

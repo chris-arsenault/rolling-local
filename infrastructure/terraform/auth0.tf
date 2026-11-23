@@ -33,10 +33,29 @@ locals {
   auth0_issuer     = nonsensitive(data.aws_ssm_parameter.auth0_issuer.value)
   auth0_audience   = "https://${local.api}"
   auth0_connection = nonsensitive(data.aws_ssm_parameter.auth0_connection_name.value)
+  # Ahara's seed administrator, declared in ahara-infra services/variables.tf.
+  owner_email = "chris@chris-arsenault.net"
   auth0_apps = {
     web     = { name = "Rolling Local", app_type = "spa", callbacks = ["${local.site_origin}/register", "${local.site_origin}/admin"] }
     ios     = { name = "Rolling Local for iOS", app_type = "native", callbacks = [local.mobile_route] }
     android = { name = "Rolling Local for Android", app_type = "native", callbacks = [local.mobile_route] }
+  }
+}
+
+data "auth0_user" "owner" {
+  query            = "email:${jsonencode(local.owner_email)} AND identities.connection:${jsonencode(local.auth0_connection)}"
+  skip_permissions = true
+  skip_roles       = true
+
+  lifecycle {
+    postcondition {
+      condition = (
+        self.email_verified && !self.blocked &&
+        lower(self.email) == local.owner_email &&
+        self.connection_name == local.auth0_connection
+      )
+      error_message = "Rolling Local requires the verified, enabled owner account in Ahara’s shared Auth0 connection."
+    }
   }
 }
 

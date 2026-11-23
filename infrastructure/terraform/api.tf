@@ -15,6 +15,12 @@ resource "aws_ssm_parameter" "application" {
   })
 }
 
+resource "aws_ssm_parameter" "admin_subject" {
+  name  = "/${local.prefix}/admin-subject"
+  type  = "String"
+  value = data.auth0_user.owner.id
+}
+
 module "api" {
   source = "git::https://github.com/chris-arsenault/ahara-tf-patterns.git//modules/alb-api"
 
@@ -32,7 +38,7 @@ module "api" {
         Action = ["ssm:GetParameter"]
         Resource = [
           aws_ssm_parameter.application.arn,
-          "arn:aws:ssm:${local.region}:${data.aws_caller_identity.current.account_id}:parameter/${local.prefix}/admin-subject",
+          aws_ssm_parameter.admin_subject.arn,
         ]
       },
       {
@@ -85,7 +91,7 @@ module "api" {
     }
   }
 
-  depends_on = [aws_ssm_parameter.application]
+  depends_on = [aws_ssm_parameter.application, aws_ssm_parameter.admin_subject]
 }
 
 data "aws_lb_target_group" "operator" {

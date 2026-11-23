@@ -65,7 +65,7 @@ jobs:
     secrets: inherit
 
   smoke:
-    name: Check deployed discovery
+    name: Check deployed routes and API
     needs: ci
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -84,14 +84,21 @@ jobs:
             (.trucks | type == "array") and
             all(.trucks[]; (.active and has("location")) or ((.active | not) and (has("location") | not)))'
           shell="$(curl "${curl_opts[@]}" "$site/")"
-          grep -F 'Rolling Local' <<< "$shell"
+          grep -F 'property="og:title" content="Find food trucks"' <<< "$shell"
+          grep -F "property=\"og:image\" content=\"$site/og-default.png\"" <<< "$shell"
+          entry="$(grep -oE '/assets/index-[a-zA-Z0-9_-]+\.js' <<< "$shell")"
           curl "${curl_opts[@]}" "$site/config.js" | grep -F "$api"
+          curl "${curl_opts[@]}" --head "$site/og-default.png" | grep -iF 'content-type: image/png'
           for path in about register admin; do
             route_shell="$(curl "${curl_opts[@]}" "$site/$path")"
-            if [[ "$route_shell" != "$shell" ]]; then
-              printf '/%s did not serve the SPA shell\n' "$path" >&2
-              exit 1
-            fi
+            case "$path" in
+              about) title='Rolling Local for truck operators' ;;
+              register) title='Register your truck' ;;
+              admin) title='Truck administration' ;;
+            esac
+            grep -F "property=\"og:title\" content=\"$title\"" <<< "$route_shell"
+            grep -F "property=\"og:url\" content=\"$site/$path\"" <<< "$route_shell"
+            grep -F "$entry" <<< "$route_shell"
           done
           curl "${curl_opts[@]}" "$api/public/config" | jq -e --arg audience "$api" '
             .issuer == "https://auth.ahara.io/" and .audience == $audience and

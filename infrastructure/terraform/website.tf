@@ -5,6 +5,37 @@ module "website" {
   hostname       = local.site
   site_directory = "${path.module}/../../frontend/dist"
   encrypt        = false
+  vpc            = module.ctx.vpc
+  og_artifact    = module.ctx.og_server
+
+  og_config = {
+    site_name = "Rolling Local"
+    defaults = {
+      title       = "Find food trucks"
+      description = "Find nearby food trucks, see who's sharing a location, and browse their menus."
+      image       = "/og-default.png"
+    }
+    routes = [
+      {
+        pattern     = "/about"
+        title       = "Rolling Local for truck operators"
+        description = "Show customers where you're serving, share your menu, and stay discoverable between stops."
+        og_type     = "website"
+      },
+      {
+        pattern     = "/register"
+        title       = "Register your truck"
+        description = "Submit your food truck for review and check your registration status."
+        og_type     = "website"
+      },
+      {
+        pattern     = "/admin"
+        title       = "Truck administration"
+        description = "Sign in to manage Rolling Local truck listings."
+        og_type     = "website"
+      },
+    ]
+  }
 
   runtime_config = {
     apiBaseUrl = "https://${local.api}"
