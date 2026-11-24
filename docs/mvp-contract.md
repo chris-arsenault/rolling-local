@@ -8,7 +8,7 @@ After approval, the assigned operator can set the time zone, weekly hours, and n
 
 ## Location and privacy
 
-The compact widget offers a sharing toggle and a camera shortcut. Starting sharing requires an explicit action and a current phone fix inside the effective operating circle and hours. An eligible position follows the phone, including while moving. The server rounds public coordinates and limits publication cadence.
+The compact widget offers a sharing toggle and a camera shortcut. Starting sharing requires an explicit action and a current phone fix inside the effective operating circle and hours. An eligible position follows the phone, including while moving. The server publishes the reported coordinates and limits publication to one update every 10 minutes for performance.
 
 The API evaluates the current hours, session and applicable circle. Closing time, an ineligible position, explicit stop, a settings change that invalidates eligibility, or expiry ends public visibility. An event-only fix expires by the end of its override. Missing updates expire by the server deadline. A later session always starts with a new operator action. The server stores the latest public fix with the session and expires the session record.
 

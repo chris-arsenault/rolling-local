@@ -23,7 +23,7 @@ targets:
         RollingLocalAPIOrigin: "$(ROLLING_LOCAL_API_ORIGIN)"
         UILaunchScreen: {}
         UIBackgroundModes: [location]
-        NSLocationWhenInUseUsageDescription: Share your truck's approximate location while you choose to broadcast.
+        NSLocationWhenInUseUsageDescription: Share your truck's location while you choose to broadcast.
         NSCameraUsageDescription: Take a photo of your truck's current menu.
         CFBundleURLTypes:
           - CFBundleURLSchemes: [rollinglocal]

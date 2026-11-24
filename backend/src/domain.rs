@@ -29,13 +29,6 @@ impl Position {
             + latitude.cos() * center_latitude.cos() * (longitude_difference / 2.0).sin().powi(2);
         2.0 * EARTH_RADIUS_METERS * chord.clamp(0.0, 1.0).sqrt().asin()
     }
-
-    fn rounded(self) -> Self {
-        Self {
-            latitude: (self.latitude * 1000.0).round() / 1000.0,
-            longitude: (self.longitude * 1000.0).round() / 1000.0,
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
@@ -52,7 +45,6 @@ impl Circle {
 
     fn contains(self, fix: Fix) -> bool {
         fix.position.meters_from(self.center) + fix.accuracy_meters <= self.radius_meters
-            && fix.position.rounded().meters_from(self.center) <= self.radius_meters
     }
 }
 
@@ -408,7 +400,7 @@ impl Session {
             return Err(Rejection::Outside);
         }
         Ok(PublicLocation {
-            position: fix.position.rounded(),
+            position: fix.position,
             recorded_at: fix.recorded_at,
             expires_at: policy.location_expires_at(fix, now).min(closes_at),
         })

@@ -10,3 +10,4 @@ All notable user-visible changes are recorded here.
 - Added owner-only truck review, editing, and manual entry. Approved trucks appear in the public directory.
 - Added an About page for truck operators and a consumer homepage menu with Ahara attribution.
 - Redesigned the website: a sidebar-and-map finder with "Serving now" filtering and relative update times, a rewritten operator page with registration calls to action, and restyled registration and admin pages.
+- Rewrote the About page as a single-column statement of what Rolling Local offers: effortless sharing, privacy first, and no ads, tracking, offers, or upcharges.

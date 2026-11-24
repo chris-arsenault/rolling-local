@@ -65,7 +65,7 @@ frame about_page "04  ·  ABOUT FOR OPERATORS" panel link "https://sulion.servic
   text about_heading "Help customers find your food truck." text-size 50 text-color #203b2c bold at 145,2446 size 1100,74
   text about_intro "Share where you’re serving and what’s on the menu." text-size 26 text-color #456153 at 145,2530 size 1040,52
   node about_photo "Food truck at an outdoor market" approved text-size 24 at 1390,2430 size 1105,163
-  node about_location "Go live when you’re serving" / "Share an approximate location from your phone." field text-size 26 at 145,2642 size 740,118
+  node about_location "Go live when you’re serving" / "Share your location from your phone." field text-size 26 at 145,2642 size 740,118
   node about_menu "Show what’s on the menu" / "Publish a timestamped menu photo." field text-size 26 at 950,2642 size 740,118
   node about_listing "Stay discoverable between stops" / "Approved listings stay searchable while offline." field text-size 26 at 1755,2642 size 740,118
   text about_review "A review comes before your truck appears in the public directory." text-size 25 text-color #456153 at 145,2805 size 2300,55

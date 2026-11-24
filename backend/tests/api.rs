@@ -900,7 +900,7 @@ async fn broadcasts_follow_moving_phone_at_cadence_and_stop_when_owner_leaves_ci
         .iter()
         .find(|t| t["name"] == "Offline Truck")
         .unwrap();
-    assert_eq!(active["location"]["position"]["latitude"], 34.541);
+    assert_eq!(active["location"]["position"]["latitude"], 34.541111);
     assert_eq!(offline["active"], false);
     assert!(offline.get("location").is_none());
 
@@ -931,7 +931,7 @@ async fn broadcasts_follow_moving_phone_at_cadence_and_stop_when_owner_leaves_ci
     assert_ne!(value(&moved)["publishedAt"], value(&first)["publishedAt"]);
     let moved = trucks(&public, due).await;
     let active = moved.iter().find(|t| t["name"] == "Copper Truck").unwrap();
-    assert_eq!(active["location"]["position"]["latitude"], 34.551);
+    assert_eq!(active["location"]["position"]["latitude"], 34.5513);
 
     let outside = due + Duration::seconds(20);
     let outcome = request(
