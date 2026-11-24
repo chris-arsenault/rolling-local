@@ -89,10 +89,15 @@ jobs:
             all(.trucks[]; (.active and has("location")) or ((.active | not) and (has("location") | not)))'
           shell="$(curl "${curl_opts[@]}" "$site/")"
           grep -F 'property="og:title" content="Find food trucks"' <<< "$shell"
-          grep -F "property=\"og:image\" content=\"$site/og-default.png\"" <<< "$shell"
+          grep -F "property=\"og:image\" content=\"$site/rolling-local-share.png\"" <<< "$shell"
           entry="$(grep -oE '/assets/index-[a-zA-Z0-9_-]+\.js' <<< "$shell")"
           curl "${curl_opts[@]}" "$site/config.js" | grep -F "$api"
-          curl "${curl_opts[@]}" --head "$site/og-default.png" | grep -iF 'content-type: image/png'
+          for image in rolling-local-share.png favicon-16x16.png favicon-32x32.png apple-touch-icon.png pwa-192x192.png pwa-512x512.png; do
+            curl "${curl_opts[@]}" --head "$site/$image" | grep -iF 'content-type: image/png'
+          done
+          curl "${curl_opts[@]}" --head "$site/favicon.svg" | grep -iF 'content-type: image/svg+xml'
+          curl "${curl_opts[@]}" --head "$site/favicon.ico" | grep -iF 'content-type: image/x-icon'
+          curl "${curl_opts[@]}" "$site/manifest.webmanifest" | jq -e '.name == "Rolling Local" and .start_url == "/"'
           for path in about register admin; do
             route_shell="$(curl "${curl_opts[@]}" "$site/$path")"
             case "$path" in

@@ -13,7 +13,7 @@ module "website" {
     defaults = {
       title       = "Find food trucks"
       description = "Find nearby food trucks, see who's sharing a location, and browse their menus."
-      image       = "/og-default.png"
+      image       = "/rolling-local-share.png"
     }
     routes = [
       {

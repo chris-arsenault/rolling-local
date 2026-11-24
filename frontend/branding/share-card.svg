@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title description">
+  <title id="title">Rolling Local</title>
+  <desc id="description">Find nearby food trucks and browse their menus.</desc>
+  <rect width="1200" height="630" fill="#fbf5e8"/>
+  <rect x="710" width="490" height="630" fill="#c2391d"/>
+  <image x="719" y="79" width="472" height="472" xlink:href="../public/favicon.svg"/>
+  <text x="60" y="296" font-family="Georgia, 'Nimbus Roman', serif" font-weight="bold" font-size="104" fill="#1f1a17">Rolling<tspan fill="#c2391d">Local</tspan></text>
+  <g fill="#50463e" font-family="'Noto Sans', sans-serif" font-size="38">
+    <text x="66" y="386">Find nearby food trucks</text>
+    <text x="66" y="438">and browse their menus.</text>
+  </g>
+</svg>

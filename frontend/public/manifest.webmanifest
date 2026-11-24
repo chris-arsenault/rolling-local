@@ -1,0 +1,15 @@
+{
+  "id": "/",
+  "name": "Rolling Local",
+  "short_name": "Rolling Local",
+  "description": "Find nearby food trucks and browse their menus.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fbf5e8",
+  "theme_color": "#fbf5e8",
+  "icons": [
+    { "src": "/pwa-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
